@@ -3,20 +3,33 @@
 {% block title %}Despesas / Notas Fiscais — Festejo{% endblock %}
 {% block topbar_title %}Despesas{% endblock %}
 
+{% block toast_stack %}
+{{ ui.toast_item(toast) }}
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <div class="page-header__intro">
     <p class="page-eyebrow">Notas fiscais</p>
     <h1><i class="bi bi-receipt-cutoff"></i> Despesas</h1>
-    <p class="muted mb-0">Importe XML/PDF (DANFE) ou cadastre manualmente quando não houver arquivo eletrônico.</p>
+    <p class="muted mb-0">
+      {% if view == 'lancar' %}
+      Importe XML/PDF (DANFE) ou cadastre manualmente quando não houver arquivo eletrônico.
+      {% else %}
+      Análise consolidada e detalhamento das despesas por categoria, dia e fornecedor.
+      {% endif %}
+    </p>
   </div>
 </div>
+
+{{ ui.section_subnav(subnav, view) }}
 
 <div class="kpi-strip kpi-strip--2">
   {{ ui.kpi_card('Notas cadastradas', totais.quantidade, 'bi-receipt', 'blue') }}
   {{ ui.kpi_card('Total despesas NF', totais.total|money, 'bi-currency-dollar', 'gold', true) }}
 </div>
 
+{% if view == 'lancar' %}
 {{ ui.alerta_erro(erro) }}
 {{ ui.alerta_sucesso(sucesso) }}
 
@@ -139,4 +152,273 @@
   </div>
   {% endif %}
 </section>
+
+{% else %}
+
+{% if analise.quantidade %}
+<section class="card card--despesas-analise" id="analise">
+  <div class="card-header">
+    <h2 class="mb-0"><i class="bi bi-graph-up"></i> Análise de despesas</h2>
+    <span class="badge">{{ analise.quantidade }} nota(s)</span>
+  </div>
+  <p class="muted help-note">Consolidado das notas fiscais por categoria, dia de compra e fornecedor.</p>
+
+  <div class="kpi-strip kpi-strip--2 mb-4">
+    {% if analise.dia_destaque %}
+    {{ ui.kpi_card('Dia com mais compras', analise.dia_destaque.valor|money, 'bi-calendar-event', 'green', true) }}
+    <article class="kpi-card kpi-card--blue">
+      <span class="kpi-card__icon"><i class="bi bi-calendar3"></i></span>
+      <div class="kpi-card__content">
+        <span class="kpi-card__label">Data em destaque</span>
+        <strong class="kpi-card__value">{{ analise.dia_destaque.data|datebr }}</strong>
+        <small class="muted">{{ analise.dia_destaque.quantidade }} nota(s) · {{ analise.dia_destaque.pct }}% do total</small>
+      </div>
+    </article>
+    {% endif %}
+  </div>
+
+  {% if analise.fornecedor_destaque %}
+  <div class="despesa-destaque despesas-destaque--fornecedor mb-4">
+    <div class="despesa-destaque__icon"><i class="bi bi-shop"></i></div>
+    <div>
+      <span class="despesa-destaque__label">Fornecedor com mais compras</span>
+      <strong class="despesa-destaque__nome">{{ analise.fornecedor_destaque.fornecedor }}</strong>
+      <p class="muted mb-0">
+        <strong>{{ analise.fornecedor_destaque.valor|money }}</strong>
+        · {{ analise.fornecedor_destaque.quantidade }} nota(s)
+        · {{ analise.fornecedor_destaque.pct }}% do total
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="grid-charts mb-4">
+    <div class="card card--chart card--nested">
+      <h3><i class="bi bi-pie-chart"></i> Despesas por categoria</h3>
+      <div class="chart-wrap">
+        <canvas id="chartDespesasCategoria" height="260"></canvas>
+      </div>
+    </div>
+    <div class="card card--chart card--nested">
+      <h3><i class="bi bi-bar-chart"></i> Compras por dia</h3>
+      <div class="chart-wrap">
+        <canvas id="chartDespesasDia" height="260"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-analise-detalhes">
+    <div class="grid-analise-detalhes__col">
+      <h3 class="analise-subtitle"><i class="bi bi-tags"></i> Detalhamento por categoria</h3>
+      <div class="categoria-bars">
+        {% for item in analise.por_categoria %}
+        <div class="categoria-bar">
+          <div class="categoria-bar__head">
+            <span class="categoria-bar__nome">{{ item.categoria }}</span>
+            <span class="categoria-bar__valor">{{ item.valor|money }}</span>
+          </div>
+          <div class="categoria-bar__track">
+            <div class="categoria-bar__fill" style="width: {{ item.pct }}%"></div>
+          </div>
+          <small class="muted">{{ item.quantidade }} nota(s) · {{ item.pct }}%</small>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="grid-analise-detalhes__col">
+      <h3 class="analise-subtitle"><i class="bi bi-calendar-week"></i> Compras por dia</h3>
+      {% set limite_dias_visiveis = 5 %}
+      <div class="lista-expansivel" id="comprasPorDiaLista" data-limite="{{ limite_dias_visiveis }}">
+        <div class="table-wrap">
+          <table class="table-hover">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Notas</th>
+                <th>Total</th>
+                <th>%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in analise.por_dia %}
+              <tr class="{% if loop.first %}highlight-row{% endif %}{% if loop.index > limite_dias_visiveis %} lista-expansivel__extra{% endif %}">
+                <td>
+                  {{ item.data|datebr }}
+                  {% if loop.first %}<span class="tag ok ms-1">Top</span>{% endif %}
+                </td>
+                <td>{{ item.quantidade }}</td>
+                <td><strong>{{ item.valor|money }}</strong></td>
+                <td>{{ item.pct }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if analise.por_dia|length > limite_dias_visiveis %}
+        <button type="button" class="btn small lista-expansivel__toggle" aria-expanded="false" aria-controls="comprasPorDiaLista">
+          <i class="bi bi-chevron-down"></i>
+          <span class="lista-expansivel__label-more">Ver lista completa ({{ analise.por_dia|length }} dias)</span>
+          <span class="lista-expansivel__label-less" hidden>Ver menos</span>
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="grid-analise-detalhes__full">
+      <h3 class="analise-subtitle"><i class="bi bi-shop"></i> Top fornecedores</h3>
+      <div class="table-wrap">
+        <table class="table-hover">
+          <thead>
+            <tr>
+              <th>Fornecedor</th>
+              <th>Notas</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in analise.por_fornecedor %}
+            <tr class="{% if loop.first %}highlight-row{% endif %}">
+              <td>
+                {{ item.fornecedor }}
+                {% if loop.first %}<span class="tag ok ms-1">Top</span>{% endif %}
+              </td>
+              <td>{{ item.quantidade }}</td>
+              <td><strong>{{ item.valor|money }}</strong></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2><i class="bi bi-table text-success"></i> Notas cadastradas</h2>
+  {% if notas %}
+  <div class="table-wrap">
+    <table class="table-hover">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Emitente</th>
+          <th>NF</th>
+          <th>Categoria</th>
+          <th>Valor</th>
+          <th>Origem</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for nota in notas %}
+        <tr>
+          <td>{{ nota.data_emissao|datebr if nota.data_emissao else '—' }}</td>
+          <td>{{ nota.emitente_nome }}</td>
+          <td>{{ nota.numero }}/{{ nota.serie }}</td>
+          <td><span class="tag ok">{{ nota.categoria }}</span></td>
+          <td><strong>{{ nota.valor_total|money }}</strong></td>
+          <td>
+            {% if nota.chave|nota_manual %}<span class="tag">Manual</span>
+            {% elif nota.xml_arquivo and nota.xml_arquivo.endswith('.pdf') %}<span class="tag">PDF</span>
+            {% elif nota.xml_arquivo %}<span class="tag">XML</span>
+            {% else %}<span class="tag">NF-e</span>{% endif %}
+          </td>
+        </tr>
+        {% if nota.produtos_resumo %}
+        <tr class="sub-row"><td colspan="6"><small><i class="bi bi-box-seam"></i> {{ nota.produtos_resumo }}</small></td></tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-inbox"></i>
+    <p>Nenhuma nota cadastrada ainda. <a href="/despesas/lancar">Lançar despesas</a></p>
+  </div>
+  {% endif %}
+</section>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if view == 'visao' and analise.quantidade %}
+<script>
+Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
+Chart.defaults.color = '#64748b';
+
+const coresCategoria = [
+  '#0f4d38', '#2563eb', '#7c3aed', '#d97706', '#dc2626',
+  '#0891b2', '#65a30d', '#c026d3', '#ea580c', '#64748b'
+];
+
+const catLabels = {{ analise.por_categoria|map(attribute='categoria')|list|tojson }};
+const catValores = {{ analise.por_categoria|map(attribute='valor')|list|tojson }};
+
+new Chart(document.getElementById('chartDespesasCategoria'), {
+  type: 'doughnut',
+  data: {
+    labels: catLabels,
+    datasets: [{
+      data: catValores,
+      backgroundColor: coresCategoria.slice(0, catLabels.length),
+      borderWidth: 3,
+      borderColor: '#ffffff',
+      hoverOffset: 8,
+      spacing: 2
+    }]
+  },
+  options: {
+    cutout: '62%',
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { padding: 14, usePointStyle: true, pointStyle: 'circle', font: { weight: '600', size: 11 } }
+      },
+      tooltip: {
+        callbacks: {
+          label(ctx) {
+            const total = catValores.reduce((a, b) => a + b, 0);
+            const pct = total ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+            return ` ${ctx.label}: R$ ${ctx.parsed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${pct}%)`;
+          }
+        }
+      }
+    }
+  }
+});
+
+const diaLabels = {{ analise.por_dia|map(attribute='data_label')|list|tojson }};
+const diaValores = {{ analise.por_dia|map(attribute='valor')|list|tojson }};
+
+new Chart(document.getElementById('chartDespesasDia'), {
+  type: 'bar',
+  data: {
+    labels: diaLabels,
+    datasets: [{
+      label: 'Total comprado',
+      data: diaValores,
+      backgroundColor: diaValores.map((_, i) => i === 0 ? '#0f4d38' : 'rgba(15, 77, 56, 0.45)'),
+      borderRadius: 8,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback(v) { return 'R$ ' + Number(v).toLocaleString('pt-BR'); }
+        }
+      },
+      x: { grid: { display: false } }
+    }
+  }
+});
+</script>
+{% endif %}
 {% endblock %}

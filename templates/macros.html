@@ -33,3 +33,30 @@
 </div>
 {% endif %}
 {% endmacro %}
+
+{% macro section_subnav(items, active) %}
+<nav class="section-nav page-subnav mb-4" aria-label="Sub-navegação da seção">
+  {% for item in items %}
+  <a href="{{ item.url }}" class="{% if active == item.id %}active{% endif %}">
+    <i class="bi {{ item.icon }}"></i> {{ item.label }}
+  </a>
+  {% endfor %}
+</nav>
+{% endmacro %}
+
+{% macro toast_item(toast) %}
+{% if toast %}
+<div class="app-toast app-toast--{{ toast.type }} show" role="alert" data-app-toast>
+  <div class="app-toast__body">
+    <i class="bi {% if toast.type == 'success' %}bi-check-circle-fill{% elif toast.type == 'error' %}bi-exclamation-circle-fill{% else %}bi-info-circle-fill{% endif %}"></i>
+    <div class="app-toast__text">
+      <strong>{{ toast.msg }}</strong>
+      {% if toast.detalhe %}<span class="app-toast__detail">{{ toast.detalhe }}</span>{% endif %}
+    </div>
+  </div>
+  <button type="button" class="app-toast__close" aria-label="Fechar">
+    <i class="bi bi-x-lg"></i>
+  </button>
+</div>
+{% endif %}
+{% endmacro %}

@@ -16,10 +16,11 @@
   </div>
 </section>
 
-<div class="kpi-strip kpi-strip--4">
+<div class="kpi-strip kpi-strip--5">
   {{ ui.kpi_card('Caixa (sem leilão)', relatorio.receita_caixa|money, 'bi-cash-stack', 'green') }}
   {{ ui.kpi_card('Rifa líquida', relatorio.receita_rifa|money, 'bi-ticket-perforated', 'blue') }}
   {{ ui.kpi_card('Leilão líquido', relatorio.receita_leilao|money, 'bi-hammer', 'purple') }}
+  {{ ui.kpi_card('Despesas', relatorio.total_despesas|money, 'bi-receipt-cutoff', 'danger') }}
   {{ ui.kpi_card('Lucro líquido', relatorio.lucro_liquido|money, 'bi-trophy', 'gold', true) }}
 </div>
 
@@ -75,7 +76,7 @@
 
 <section class="grid-dashboard">
   <div class="card card--chart">
-    <h2><i class="bi bi-pie-chart"></i> Receitas do festejo</h2>
+    <h2><i class="bi bi-pie-chart"></i> Receitas e despesas</h2>
     <div class="chart-wrap">
       <canvas id="chartReceitas" height="260"></canvas>
     </div>
@@ -100,10 +101,10 @@ Chart.defaults.color = '#64748b';
 new Chart(document.getElementById('chartReceitas'), {
   type: 'doughnut',
   data: {
-    labels: ['Caixa', 'Rifa', 'Leilão', 'Outras'],
+    labels: ['Caixa', 'Rifa', 'Leilão', 'Outras', 'Despesas'],
     datasets: [{
-      data: [{{ relatorio.receita_caixa }}, {{ relatorio.receita_rifa }}, {{ relatorio.receita_leilao }}, {{ relatorio.receita_outras }}],
-      backgroundColor: ['#0f4d38', '#2563eb', '#7c3aed', '#d97706'],
+      data: [{{ relatorio.receita_caixa }}, {{ relatorio.receita_rifa }}, {{ relatorio.receita_leilao }}, {{ relatorio.receita_outras }}, {{ relatorio.total_despesas }}],
+      backgroundColor: ['#0f4d38', '#2563eb', '#7c3aed', '#d97706', '#dc2626'],
       borderWidth: 3,
       borderColor: '#ffffff',
       hoverOffset: 10,
@@ -116,7 +117,16 @@ new Chart(document.getElementById('chartReceitas'), {
     plugins: {
       legend: {
         position: 'bottom',
-        labels: { padding: 20, usePointStyle: true, pointStyle: 'circle', font: { weight: '600', size: 12 } }
+        labels: { padding: 16, usePointStyle: true, pointStyle: 'circle', font: { weight: '600', size: 11 } }
+      },
+      tooltip: {
+        callbacks: {
+          label(ctx) {
+            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+            const pct = total ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+            return ` ${ctx.label}: R$ ${ctx.parsed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${pct}%)`;
+          }
+        }
       }
     }
   }

@@ -15,6 +15,8 @@
   </div>
 </div>
 
+{{ ui.section_subnav(subnav, view) }}
+
 <div class="kpi-strip kpi-strip--4">
   {{ ui.kpi_card('Total receitas', total_receitas|money, 'bi-arrow-down-circle', 'green') }}
   {{ ui.kpi_card('Total despesas', total_despesas|money, 'bi-arrow-up-circle', 'danger') }}
@@ -22,42 +24,7 @@
   {{ ui.kpi_card('Lucro líquido', lucro_liquido|money, 'bi-trophy', 'gold', true) }}
 </div>
 
-<section class="grid-content grid-content--wide-left">
-  <div class="card">
-    <h2><i class="bi bi-arrow-down-circle text-success"></i> Receitas automáticas</h2>
-    <ul class="summary-list">
-      <li><span>Caixa (sem leilão)</span><strong>{{ receita_caixa|money }}</strong></li>
-      <li><span>Rifa líquida</span><strong>{{ receita_rifa|money }}</strong></li>
-      <li><span>Leilão líquido</span><strong>{{ receita_leilao|money }}</strong></li>
-      <li><span>Outras receitas</span><strong>{{ receita_outras|money }}</strong></li>
-      <li class="highlight"><span>Total receitas</span><strong>{{ total_receitas|money }}</strong></li>
-    </ul>
-  </div>
-  <div class="card">
-    <h2><i class="bi bi-piggy-bank text-success"></i> Resultado</h2>
-    <ul class="summary-list">
-      <li><span>Total despesas</span><strong>{{ total_despesas|money }}</strong></li>
-      <li><span>Ganho líquido</span><strong>{{ ganho_liquido|money }}</strong></li>
-      <li><span>15% Cúria</span><strong>{{ curia_15|money }}</strong></li>
-      <li class="highlight gold"><span>Lucro líquido</span><strong>{{ lucro_liquido|money }}</strong></li>
-    </ul>
-  </div>
-</section>
-
-<section class="grid-charts">
-  <div class="card card--chart">
-    <h2><i class="bi bi-bar-chart-line"></i> Resultado consolidado</h2>
-    <div class="chart-wrap">
-      <canvas id="chartResultado" height="280"></canvas>
-    </div>
-  </div>
-  <div class="card card--chart">
-    <h2><i class="bi bi-pie-chart"></i> Composição das receitas</h2>
-    <div class="chart-wrap">
-      <canvas id="chartReceitasDet" height="280"></canvas>
-    </div>
-  </div>
-</section>
+{% if view == 'lancar' %}
 
 <section class="card">
   <h2><i class="bi bi-plus-circle text-success"></i> Lançar receita ou despesa manual</h2>
@@ -111,7 +78,7 @@
     {% endif %}
   </div>
   <div class="card">
-    <h2><i class="bi bi-box-arrow-up text-danger"></i> Despesas</h2>
+    <h2><i class="bi bi-box-arrow-up text-danger"></i> Despesas manuais</h2>
     {% if despesas %}
     <div class="table-wrap">
       <table>
@@ -124,7 +91,7 @@
             <td>{{ d.valor|money }}</td>
             <td class="actions-cell">
               {% if d.nota_fiscal %}
-              <a href="/despesas" class="btn small"><i class="bi bi-receipt"></i> Despesas</a>
+              <a href="/despesas/visao-geral" class="btn small"><i class="bi bi-receipt"></i> Despesas</a>
               {% else %}
               <details class="edit-details">
                 <summary class="btn small"><i class="bi bi-pencil"></i> Editar</summary>
@@ -147,8 +114,47 @@
       </table>
     </div>
     {% else %}
-    <p class="muted mb-0">Nenhuma despesa lançada.</p>
+    <p class="muted mb-0">Nenhuma despesa manual lançada.</p>
     {% endif %}
+  </div>
+</section>
+
+{% else %}
+
+<section class="grid-content grid-content--wide-left">
+  <div class="card">
+    <h2><i class="bi bi-arrow-down-circle text-success"></i> Receitas automáticas</h2>
+    <ul class="summary-list">
+      <li><span>Caixa (sem leilão)</span><strong>{{ receita_caixa|money }}</strong></li>
+      <li><span>Rifa líquida</span><strong>{{ receita_rifa|money }}</strong></li>
+      <li><span>Leilão líquido</span><strong>{{ receita_leilao|money }}</strong></li>
+      <li><span>Outras receitas</span><strong>{{ receita_outras|money }}</strong></li>
+      <li class="highlight"><span>Total receitas</span><strong>{{ total_receitas|money }}</strong></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h2><i class="bi bi-piggy-bank text-success"></i> Resultado</h2>
+    <ul class="summary-list">
+      <li><span>Total despesas</span><strong>{{ total_despesas|money }}</strong></li>
+      <li><span>Ganho líquido</span><strong>{{ ganho_liquido|money }}</strong></li>
+      <li><span>15% Cúria</span><strong>{{ curia_15|money }}</strong></li>
+      <li class="highlight gold"><span>Lucro líquido</span><strong>{{ lucro_liquido|money }}</strong></li>
+    </ul>
+  </div>
+</section>
+
+<section class="grid-charts">
+  <div class="card card--chart">
+    <h2><i class="bi bi-bar-chart-line"></i> Resultado consolidado</h2>
+    <div class="chart-wrap">
+      <canvas id="chartResultado" height="280"></canvas>
+    </div>
+  </div>
+  <div class="card card--chart">
+    <h2><i class="bi bi-pie-chart"></i> Composição das receitas</h2>
+    <div class="chart-wrap">
+      <canvas id="chartReceitasDet" height="280"></canvas>
+    </div>
   </div>
 </section>
 
@@ -176,9 +182,12 @@
     </div>
   </form>
 </section>
+
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
+{% if view == 'visao' %}
 <script>
 (function () {
   const tudo = document.getElementById('csvTudo');
@@ -251,4 +260,5 @@ new Chart(document.getElementById('chartReceitasDet'), {
   }
 });
 </script>
+{% endif %}
 {% endblock %}

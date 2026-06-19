@@ -1,8 +1,12 @@
 import shutil
 
+import json
+
 from datetime import date, datetime
 
 from pathlib import Path
+
+from urllib.parse import quote
 
 
 
@@ -13,6 +17,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 
 from sqlalchemy.orm import Session
 
@@ -67,6 +72,7 @@ from app.services import (
     listar_caixa_festejo,
 
     ranking_produtos_vendas,
+    resumo_gratuidade_festejo,
 
     relatorio_final,
 
@@ -79,6 +85,10 @@ from app.services import (
     totais_rifa,
 
     importar_nota_fiscal,
+
+    assert_nota_nao_duplicada,
+
+    NotaDuplicadaError,
 
     cadastrar_nota_manual,
 
@@ -103,6 +113,8 @@ from app.services import (
     atualizar_lancamento_financeiro,
 
     totais_notas_fiscais,
+
+    analise_despesas_festejo,
 
     is_nota_manual,
 
@@ -158,6 +170,15 @@ templates.env.filters["datebr"] = lambda d: d.strftime("%d/%m/%Y") if d else ""
 templates.env.filters["nota_manual"] = is_nota_manual
 
 templates.env.filters["abs"] = abs
+
+templates.env.filters["tojson"] = lambda v: Markup(json.dumps(v, ensure_ascii=False))
+
+
+def _section_subnav(base_path: str, lancar_label: str) -> list[dict]:
+    return [
+        {"id": "visao", "label": "Visão geral", "url": f"{base_path}/visao-geral", "icon": "bi-grid-1x2"},
+        {"id": "lancar", "label": lancar_label, "url": f"{base_path}/lancar", "icon": "bi-plus-circle"},
+    ]
 
 
 
@@ -308,33 +329,31 @@ def criar_dia(
 
 
 @app.get("/caixa", response_class=HTMLResponse)
+def pagina_caixa_redirect():
+    return RedirectResponse("/caixa/visao-geral", status_code=303)
 
+
+@app.get("/caixa/visao-geral", response_class=HTMLResponse)
+@app.get("/caixa/lancar", response_class=HTMLResponse)
 def pagina_caixa(request: Request, db: Session = Depends(get_db)):
-
     festejo = get_or_create_festejo_ativo(db)
-
     resumo = listar_caixa_festejo(db, festejo.id)
-
     ranking = ranking_produtos_vendas(db, festejo.id)
+    gratuidade = resumo_gratuidade_festejo(db, festejo.id)
+    view = "lancar" if request.url.path.endswith("/lancar") else "visao"
 
     return templates.TemplateResponse(
-
         request,
-
         "caixa.html",
-
         {
-
             "festejo": festejo,
-
             "dias": resumo["dias"],
-
             "totais": resumo["totais"],
-
             "ranking": ranking,
-
+            "gratuidade": gratuidade,
+            "view": view,
+            "subnav": _section_subnav("/caixa", "Lançar caixa"),
         },
-
     )
 
 
@@ -617,7 +636,7 @@ def excluir_leilao(mov_id: int, voltar: str = Form(""), db: Session = Depends(ge
 
     if voltar == "leilao":
 
-        return RedirectResponse("/leilao", status_code=303)
+        return RedirectResponse("/leilao/lancar", status_code=303)
 
     return RedirectResponse(f"/leilao/dias/{dia_id}", status_code=303)
 
@@ -663,7 +682,7 @@ def editar_leilao(
 
     if voltar == "leilao":
 
-        return RedirectResponse("/leilao", status_code=303)
+        return RedirectResponse("/leilao/lancar", status_code=303)
 
     return RedirectResponse(f"/leilao/dias/{mov.dia_id}", status_code=303)
 
@@ -672,47 +691,38 @@ def editar_leilao(
 
 
 @app.get("/rifa", response_class=HTMLResponse)
+def pagina_rifa_redirect():
+    return RedirectResponse("/rifa/visao-geral", status_code=303)
 
+
+@app.get("/rifa/visao-geral", response_class=HTMLResponse)
+@app.get("/rifa/lancar", response_class=HTMLResponse)
 def pagina_rifa(request: Request, db: Session = Depends(get_db), erro: str = "", sucesso: str = ""):
-
     festejo = get_or_create_festejo_ativo(db)
+    view = "lancar" if request.url.path.endswith("/lancar") else "visao"
 
     movimentos = (
-
         db.query(RifaMovimento)
-
         .filter(RifaMovimento.festejo_id == festejo.id)
-
         .order_by(RifaMovimento.data.desc(), RifaMovimento.id.desc())
-
         .all()
-
     )
 
     totais = totais_rifa(db, festejo.id)
 
     return templates.TemplateResponse(
-
         request,
-
         "rifa.html",
-
         {
-
             "festejo": festejo,
-
             "movimentos": movimentos,
-
             "totais": totais,
-
             "vendedores": resumo_vendedores_rifa(db, festejo.id),
-
             "erro": erro,
-
             "sucesso": sucesso,
-
+            "view": view,
+            "subnav": _section_subnav("/rifa", "Lançar rifa"),
         },
-
     )
 
 
@@ -786,27 +796,18 @@ async def importar_planilha_rifa_route(
     )
 
     return templates.TemplateResponse(
-
         request,
-
         "rifa.html",
-
         {
-
             "festejo": festejo,
-
             "movimentos": movimentos,
-
             "totais": totais_rifa(db, festejo.id),
-
             "vendedores": resumo_vendedores_rifa(db, festejo.id),
-
             "erro": erro,
-
             "sucesso": sucesso,
-
+            "view": "lancar",
+            "subnav": _section_subnav("/rifa", "Lançar rifa"),
         },
-
     )
 
 
@@ -903,7 +904,7 @@ def adicionar_rifa(
 
     db.commit()
 
-    return RedirectResponse("/rifa", status_code=303)
+    return RedirectResponse("/rifa/lancar", status_code=303)
 
 
 
@@ -955,7 +956,7 @@ def editar_rifa(
 
         raise HTTPException(400, str(exc))
 
-    return RedirectResponse("/rifa", status_code=303)
+    return RedirectResponse("/rifa/lancar", status_code=303)
 
 
 
@@ -975,62 +976,49 @@ def excluir_rifa(mov_id: int, db: Session = Depends(get_db)):
 
         pass
 
-    return RedirectResponse("/rifa", status_code=303)
+    return RedirectResponse("/rifa/lancar", status_code=303)
 
 
 
 
 
 @app.get("/leilao", response_class=HTMLResponse)
+def pagina_leilao_redirect():
+    return RedirectResponse("/leilao/visao-geral", status_code=303)
 
+
+@app.get("/leilao/visao-geral", response_class=HTMLResponse)
+@app.get("/leilao/lancar", response_class=HTMLResponse)
 def pagina_leilao(request: Request, db: Session = Depends(get_db)):
-
     festejo = get_or_create_festejo_ativo(db)
+    view = "lancar" if request.url.path.endswith("/lancar") else "visao"
 
     dias = (
-
         db.query(DiaFestejo)
-
         .filter(DiaFestejo.festejo_id == festejo.id)
-
         .order_by(DiaFestejo.data)
-
         .all()
-
     )
 
     movimentos = (
-
         db.query(LeilaoMovimento)
-
         .join(DiaFestejo)
-
         .filter(DiaFestejo.festejo_id == festejo.id)
-
         .order_by(DiaFestejo.data, LeilaoMovimento.id)
-
         .all()
-
     )
 
     return templates.TemplateResponse(
-
         request,
-
         "leilao.html",
-
         {
-
             "festejo": festejo,
-
             "dias": dias,
-
             "movimentos": movimentos,
-
             "totais": totais_leilao(db, festejo.id),
-
+            "view": view,
+            "subnav": _section_subnav("/leilao", "Lançar leilão"),
         },
-
     )
 
 
@@ -1064,15 +1052,18 @@ def ver_leilao_dia(dia_id: int, request: Request, db: Session = Depends(get_db))
 
 
 @app.get("/relatorio", response_class=HTMLResponse)
+def pagina_relatorio_redirect():
+    return RedirectResponse("/relatorio/visao-geral", status_code=303)
 
+
+@app.get("/relatorio/visao-geral", response_class=HTMLResponse)
+@app.get("/relatorio/lancar", response_class=HTMLResponse)
 def pagina_relatorio(request: Request, db: Session = Depends(get_db)):
-
     festejo = get_or_create_festejo_ativo(db)
-
     dados = relatorio_final(db, festejo.id)
-
     dados["secoes_csv"] = SECOES_DISPONIVEIS
-
+    dados["view"] = "lancar" if request.url.path.endswith("/lancar") else "visao"
+    dados["subnav"] = _section_subnav("/relatorio", "Lançamentos")
     return templates.TemplateResponse(request, "relatorio.html", dados)
 
 
@@ -1167,7 +1158,7 @@ def adicionar_lancamento(
 
     db.commit()
 
-    return RedirectResponse("/relatorio", status_code=303)
+    return RedirectResponse("/relatorio/lancar", status_code=303)
 
 
 
@@ -1217,7 +1208,7 @@ def editar_lancamento_relatorio(
 
         raise HTTPException(400, str(exc))
 
-    return RedirectResponse("/relatorio", status_code=303)
+    return RedirectResponse("/relatorio/lancar", status_code=303)
 
 
 
@@ -1237,7 +1228,7 @@ def excluir_lancamento_relatorio(lanc_id: int, db: Session = Depends(get_db)):
 
         pass
 
-    return RedirectResponse("/relatorio", status_code=303)
+    return RedirectResponse("/relatorio/lancar", status_code=303)
 
 
 
@@ -1349,7 +1340,28 @@ def api_relatorio(db: Session = Depends(get_db)):
 
 
 
-def _ctx_despesas(db: Session, festejo: Festejo, erro: str = "", sucesso: str = "") -> dict:
+def _parse_toast_query(request: Request) -> dict | None:
+    toast_type = request.query_params.get("toast", "").strip()
+    msg = request.query_params.get("msg", "").strip()
+    if not toast_type or not msg:
+        return None
+    if toast_type not in ("success", "error", "info"):
+        toast_type = "info"
+    return {
+        "type": toast_type,
+        "msg": msg,
+        "detalhe": request.query_params.get("detalhe", "").strip(),
+    }
+
+
+def _ctx_despesas(
+    db: Session,
+    festejo: Festejo,
+    view: str = "visao",
+    erro: str = "",
+    sucesso: str = "",
+    toast: dict | None = None,
+) -> dict:
     notas = (
         db.query(NotaFiscal)
         .filter(NotaFiscal.festejo_id == festejo.id)
@@ -1360,26 +1372,32 @@ def _ctx_despesas(db: Session, festejo: Festejo, erro: str = "", sucesso: str = 
         "festejo": festejo,
         "notas": notas,
         "totais": totais_notas_fiscais(db, festejo.id),
+        "analise": analise_despesas_festejo(db, festejo.id),
         "categorias": [c[0] for c in CATEGORIAS_KEYWORDS] + ["Despesas gerais"],
         "erro": erro,
         "sucesso": sucesso,
+        "toast": toast,
+        "view": view,
+        "subnav": _section_subnav("/despesas", "Lançar despesas"),
     }
 
 
 @app.get("/despesas", response_class=HTMLResponse)
+def pagina_despesas_redirect():
+    return RedirectResponse("/despesas/visao-geral", status_code=303)
 
+
+@app.get("/despesas/visao-geral", response_class=HTMLResponse)
+@app.get("/despesas/lancar", response_class=HTMLResponse)
 def pagina_despesas(request: Request, db: Session = Depends(get_db), erro: str = "", sucesso: str = ""):
-
     festejo = get_or_create_festejo_ativo(db)
+    view = "lancar" if request.url.path.endswith("/lancar") else "visao"
+    toast = _parse_toast_query(request)
 
     return templates.TemplateResponse(
-
         request,
-
         "despesas.html",
-
-        _ctx_despesas(db, festejo, erro, sucesso),
-
+        _ctx_despesas(db, festejo, view, erro, sucesso, toast),
     )
 
 
@@ -1401,10 +1419,6 @@ async def importar_despesa_nfe(
 ):
 
     festejo = get_or_create_festejo_ativo(db)
-
-    erro = ""
-
-    sucesso = ""
 
 
 
@@ -1436,10 +1450,6 @@ async def importar_despesa_nfe(
 
                 dest = DATA_DIR / "nfe" / f"{parsed.chave}.xml"
 
-                dest.write_bytes(content)
-
-                arquivo_path = str(dest)
-
             elif nome.endswith(".pdf") or content[:4] == b"%PDF":
 
                 parsed = parse_nfe_pdf(content, chave_informada=chave_norm)
@@ -1450,13 +1460,19 @@ async def importar_despesa_nfe(
 
                 dest = DATA_DIR / "nfe" / f"{parsed.chave}.pdf"
 
-                dest.write_bytes(content)
-
-                arquivo_path = str(dest)
-
             else:
 
                 raise ValueError("Envie um arquivo XML ou PDF (DANFE) da nota fiscal.")
+
+
+
+            assert_nota_nao_duplicada(db, parsed.chave)
+
+            dest.parent.mkdir(parents=True, exist_ok=True)
+
+            dest.write_bytes(content)
+
+            arquivo_path = str(dest)
 
 
 
@@ -1464,11 +1480,7 @@ async def importar_despesa_nfe(
 
             chave_norm = validar_chave(chave)
 
-            existente = db.query(NotaFiscal).filter(NotaFiscal.chave == chave_norm).first()
-
-            if existente:
-
-                raise ValueError(f"Nota {chave_norm} já cadastrada.")
+            assert_nota_nao_duplicada(db, chave_norm)
 
             raise ValueError(
 
@@ -1482,37 +1494,39 @@ async def importar_despesa_nfe(
 
 
 
-        nota = importar_nota_fiscal(db, festejo.id, parsed, arquivo_path)
+        importar_nota_fiscal(db, festejo.id, parsed, arquivo_path)
 
-        sucesso = (
+        detalhe = quote(
 
-            f"Nota {nota.numero}/{nota.serie} importada — "
+            f"NF {parsed.numero}/{parsed.serie} — {parsed.categoria} — {fmt_money(parsed.valor_total)}"
 
-            f"{nota.categoria} — {fmt_money(nota.valor_total)}"
+        )
 
+        return RedirectResponse(
+            f"/despesas/lancar?toast=success&msg={quote('Importado com sucesso')}&detalhe={detalhe}",
+            status_code=303,
+        )
+
+    except NotaDuplicadaError as exc:
+
+        return RedirectResponse(
+            f"/despesas/lancar?toast=error&msg={quote('Nota não lançada')}&detalhe={quote(str(exc))}",
+            status_code=303,
         )
 
     except ValueError as exc:
 
-        erro = str(exc)
+        return RedirectResponse(
+            f"/despesas/lancar?toast=error&msg={quote(str(exc))}",
+            status_code=303,
+        )
 
     except Exception as exc:
 
-        erro = f"Erro ao processar nota: {exc}"
-
-
-
-    festejo = get_or_create_festejo_ativo(db)
-
-    return templates.TemplateResponse(
-
-        request,
-
-        "despesas.html",
-
-        _ctx_despesas(db, festejo, erro, sucesso),
-
-    )
+        return RedirectResponse(
+            f"/despesas/lancar?toast=error&msg={quote(f'Erro ao processar nota: {exc}')}",
+            status_code=303,
+        )
 
 
 
@@ -1604,6 +1618,10 @@ def cadastrar_despesa_manual(
 
         )
 
+    except NotaDuplicadaError as exc:
+
+        erro = f"Nota não lançada. {exc}"
+
     except ValueError as exc:
 
         erro = str(exc)
@@ -1617,13 +1635,9 @@ def cadastrar_despesa_manual(
     festejo = get_or_create_festejo_ativo(db)
 
     return templates.TemplateResponse(
-
         request,
-
         "despesas.html",
-
-        _ctx_despesas(db, festejo, erro, sucesso),
-
+        _ctx_despesas(db, festejo, "lancar", erro, sucesso),
     )
 
 
@@ -1642,7 +1656,7 @@ def excluir_despesa_nfe(nota_id: int, db: Session = Depends(get_db)):
 
         pass
 
-    return RedirectResponse("/despesas", status_code=303)
+    return RedirectResponse("/despesas/lancar", status_code=303)
 
 
 
@@ -1731,12 +1745,8 @@ def editar_despesa_nfe(
         erro = f"Erro ao atualizar nota: {exc}"
 
     return templates.TemplateResponse(
-
         request,
-
         "despesas.html",
-
-        _ctx_despesas(db, festejo, erro, sucesso),
-
+        _ctx_despesas(db, festejo, "lancar", erro, sucesso),
     )
 

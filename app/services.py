@@ -85,6 +85,12 @@ def calc_consolidacao_dia(dia: DiaFestejo) -> dict:
     pdf_pix = pdf.pix if pdf else 0
     pdf_total_pagamentos = round(pdf_dinheiro + pdf_debito + pdf_credito + pdf_pix, 2) if pdf else 0
     pdf_total_vendas = pdf.total_vendas if pdf else 0
+    gratuidade_total = round(pdf.total_gratuidade, 2) if pdf else 0.0
+    gratuidade_produtos = (
+        [p for p in pdf.produtos if p.secao == "gratuidade"] if pdf else []
+    )
+    sangrias_total = round(sum(s.valor for s in dia.sangrias), 2)
+    saidas_total = round(sangrias_total + gratuidade_total, 2)
 
     diff_pagamentos = None
     diff_dinheiro = None
@@ -128,7 +134,10 @@ def calc_consolidacao_dia(dia: DiaFestejo) -> dict:
         "leilao_entradas": round(leilao_entradas, 2),
         "leilao_saidas": round(leilao_saidas, 2),
         "saldo_leilao_dia": round(saldo_leilao, 2),
-        "sangrias_total": round(sum(s.valor for s in dia.sangrias), 2),
+        "sangrias_total": sangrias_total,
+        "gratuidade_total": gratuidade_total,
+        "gratuidade_produtos": gratuidade_produtos,
+        "saidas_total": saidas_total,
     }
 
 
@@ -404,6 +413,8 @@ def listar_caixa_festejo(db: Session, festejo_id: int) -> dict:
         "pix": 0.0,
         "troco": 0.0,
         "sangrias": 0.0,
+        "gratuidade": 0.0,
+        "saidas_total": 0.0,
         "dias_count": len(dias),
     }
 
@@ -423,6 +434,8 @@ def listar_caixa_festejo(db: Session, festejo_id: int) -> dict:
         totais["pix"] += cons["pix"]
         totais["troco"] += cons["total_troco"]
         totais["sangrias"] += cons["sangrias_total"]
+        totais["gratuidade"] += cons["gratuidade_total"]
+        totais["saidas_total"] += cons["saidas_total"]
         if dia_full.relatorio_pdf:
             totais["total_vendas_pdf"] += dia_full.relatorio_pdf.total_vendas
 
@@ -431,6 +444,55 @@ def listar_caixa_festejo(db: Session, festejo_id: int) -> dict:
             totais[key] = round(totais[key], 2)
 
     return {"dias": items, "totais": totais}
+
+
+def resumo_gratuidade_festejo(db: Session, festejo_id: int) -> dict:
+    """Agrega gratuidade (saídas de funcionários) dos PDFs do caixa."""
+    query = (
+        db.query(ProdutoVenda)
+        .join(RelatorioPdf)
+        .filter(
+            RelatorioPdf.festejo_id == festejo_id,
+            ProdutoVenda.secao == "gratuidade",
+        )
+    )
+    linhas = query.filter(RelatorioPdf.eh_acumulado.is_(False)).all()
+    if not linhas:
+        linhas = query.all()
+
+    agregado: dict[tuple[str, int | None], dict] = {}
+    for linha in linhas:
+        nome = linha.produto.strip()
+        chave = (nome.lower(), linha.codigo)
+        if chave not in agregado:
+            agregado[chave] = {
+                "produto": nome,
+                "codigo": linha.codigo,
+                "quantidade": 0.0,
+                "total": 0.0,
+            }
+        agregado[chave]["quantidade"] += linha.quantidade
+        agregado[chave]["total"] += linha.total
+
+    produtos = sorted(
+        agregado.values(),
+        key=lambda x: (-x["quantidade"], -x["total"], x["produto"].lower()),
+    )
+    for pos, item in enumerate(produtos, start=1):
+        item["posicao"] = pos
+        item["quantidade"] = round(item["quantidade"], 2)
+        item["total"] = round(item["total"], 2)
+
+    pdfs = (
+        db.query(RelatorioPdf)
+        .filter(RelatorioPdf.festejo_id == festejo_id, RelatorioPdf.eh_acumulado.is_(False))
+        .all()
+    )
+    if not pdfs:
+        pdfs = db.query(RelatorioPdf).filter(RelatorioPdf.festejo_id == festejo_id).all()
+    total = round(sum(p.total_gratuidade for p in pdfs), 2)
+
+    return {"produtos": produtos, "total": total}
 
 
 def ranking_produtos_vendas(db: Session, festejo_id: int) -> list[dict]:
@@ -593,6 +655,68 @@ def totais_notas_fiscais(db: Session, festejo_id: int) -> dict:
     return {"quantidade": len(notas), "total": round(total, 2)}
 
 
+def analise_despesas_festejo(db: Session, festejo_id: int) -> dict:
+    """Agrega notas fiscais por categoria, dia e fornecedor (local de compra)."""
+    notas = db.query(NotaFiscal).filter(NotaFiscal.festejo_id == festejo_id).all()
+    total = sum(n.valor_total for n in notas)
+
+    cat_map: dict[str, dict] = {}
+    dia_map: dict[date, dict] = {}
+    forn_map: dict[str, dict] = {}
+
+    for nota in notas:
+        cat = (nota.categoria or "Despesas gerais").strip()
+        if cat not in cat_map:
+            cat_map[cat] = {"categoria": cat, "valor": 0.0, "quantidade": 0}
+        cat_map[cat]["valor"] += nota.valor_total
+        cat_map[cat]["quantidade"] += 1
+
+        dia = nota.data_emissao
+        if dia:
+            if dia not in dia_map:
+                dia_map[dia] = {"data": dia, "valor": 0.0, "quantidade": 0}
+            dia_map[dia]["valor"] += nota.valor_total
+            dia_map[dia]["quantidade"] += 1
+
+        forn = (nota.emitente_nome or "Fornecedor não informado").strip()
+        chave_forn = forn.lower()
+        if chave_forn not in forn_map:
+            forn_map[chave_forn] = {"fornecedor": forn, "valor": 0.0, "quantidade": 0}
+        forn_map[chave_forn]["valor"] += nota.valor_total
+        forn_map[chave_forn]["quantidade"] += 1
+
+    def _enriquecer(items: list[dict]) -> list[dict]:
+        for item in items:
+            item["valor"] = round(item["valor"], 2)
+            item["pct"] = round((item["valor"] / total * 100), 1) if total else 0.0
+            if "data" in item and item.get("data"):
+                item["data_label"] = item["data"].strftime("%d/%m/%Y")
+        return items
+
+    por_categoria = _enriquecer(
+        sorted(cat_map.values(), key=lambda x: (-x["valor"], x["categoria"].lower()))
+    )
+    por_dia = _enriquecer(
+        sorted(dia_map.values(), key=lambda x: (-x["valor"], x["data"]))
+    )
+    por_fornecedor = _enriquecer(
+        sorted(forn_map.values(), key=lambda x: (-x["valor"], x["fornecedor"].lower()))
+    )
+
+    dia_destaque = por_dia[0] if por_dia else None
+    fornecedor_destaque = por_fornecedor[0] if por_fornecedor else None
+
+    return {
+        "total": round(total, 2),
+        "quantidade": len(notas),
+        "por_categoria": por_categoria,
+        "por_dia": por_dia,
+        "por_fornecedor": por_fornecedor[:10],
+        "dia_destaque": dia_destaque,
+        "fornecedor_destaque": fornecedor_destaque,
+    }
+
+
 def _descricao_lancamento_nota(parsed: NFeParsed) -> str:
     emitente = parsed.emitente_nome[:80] if parsed.emitente_nome else "Fornecedor"
     return f"{emitente} — NF {parsed.numero}/{parsed.serie}"
@@ -638,8 +762,9 @@ def cadastrar_nota_manual(
         raise ValueError("Informe um valor maior que zero.")
 
     chave_norm = validar_chave(chave) if chave.strip() else _gerar_chave_manual(db, festejo_id)
-    if db.query(NotaFiscal).filter(NotaFiscal.chave == chave_norm).first():
-        raise ValueError("Já existe uma nota cadastrada com esta chave.")
+    existente = db.query(NotaFiscal).filter(NotaFiscal.chave == chave_norm).first()
+    if existente:
+        raise NotaDuplicadaError(existente)
 
     cat = categoria.strip()
     if not cat:
@@ -664,6 +789,24 @@ def cadastrar_nota_manual(
     return importar_nota_fiscal(db, festejo_id, parsed, xml_arquivo=None)
 
 
+class NotaDuplicadaError(ValueError):
+    """NF-e já cadastrada — importação/lançamento bloqueado."""
+
+    def __init__(self, existente: "NotaFiscal"):
+        self.existente = existente
+        motivo = (
+            f"Motivo: duplicidade — a NF {existente.numero}/{existente.serie} "
+            f"({existente.emitente_nome}) já está cadastrada no sistema."
+        )
+        super().__init__(motivo)
+
+
+def assert_nota_nao_duplicada(db: Session, chave: str) -> None:
+    existente = db.query(NotaFiscal).filter(NotaFiscal.chave == chave).first()
+    if existente:
+        raise NotaDuplicadaError(existente)
+
+
 def importar_nota_fiscal(
     db: Session,
     festejo_id: int,
@@ -674,7 +817,7 @@ def importar_nota_fiscal(
     existente = db.query(NotaFiscal).filter(NotaFiscal.chave == parsed.chave).first()
     if existente:
         if existente.completa or not sobrescrever_pendente:
-            raise ValueError(f"Nota {parsed.chave} já está cadastrada no sistema.")
+            assert_nota_nao_duplicada(db, parsed.chave)
         if existente.lancamento_id:
             db.delete(existente.lancamento)
         db.delete(existente)

@@ -49,6 +49,19 @@ def extrair_chave_pdf(text: str) -> str:
 
 
 def extrair_natureza_pdf(text: str) -> str:
+    # Layout em colunas: rótulo numa linha, valor na seguinte
+    colunas = re.search(
+        r"NATUREZA\s+DA\s+OPERA[ÇC][ÃA]O[^\n]*\n\s*(.+)",
+        text,
+        re.IGNORECASE,
+    )
+    if colunas:
+        linha = colunas.group(1).strip()
+        natureza = re.split(r"\s+\d{12,}(?:\s+\d{2}/\d{2}/\d{4})?", linha)[0]
+        natureza = re.sub(r"\s+", " ", natureza).strip()
+        if len(natureza) > 3:
+            return natureza[:255]
+
     patterns = [
         r"NATUREZA\s+DA\s+OPERA[ÇC][ÃA]O\s*[:\-]?\s*(.+?)(?:\n|PROTOCOLO|INSCRI|FATURA|DUPLICATAS|FOLHA)",
         r"Natureza da Opera[çc][ãa]o\s*[:\-]?\s*(.+?)(?:\n|$)",
@@ -127,25 +140,53 @@ def extrair_data_emissao_pdf(text: str, chave: str):
     return parse_chave_nfe(chave)["data_emissao"]
 
 
-def extrair_valor_total_pdf(text: str) -> float:
-    patterns = [
-        r"VALOR\s+TOTAL\s+DA\s+NOTA\s*(?:R\$)?\s*([\d.,]+)",
-        r"VALOR\s+TOTAL\s+NOTA\s*(?:R\$)?\s*([\d.,]+)",
-        r"V\.?\s*TOTAL\s+DA\s+NOTA\s*(?:R\$)?\s*([\d.,]+)",
-        r"VALOR\s+TOTAL\s+(?:R\$)?\s*([\d.,]+)",
-    ]
-    for pattern in patterns:
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        if matches:
-            return round(_parse_money(matches[-1]), 2)
+def _valores_monetarios_linha(linha: str) -> list[str]:
+    return re.findall(r"\d[\d.,]*", linha)
 
-    produtos = re.search(
-        r"VALOR\s+TOTAL\s+DOS\s+PRODUTOS\s*(?:R\$)?\s*([\d.,]+)",
-        text,
-        re.IGNORECASE,
-    )
-    if produtos:
-        return round(_parse_money(produtos.group(1)), 2)
+
+def _valor_ultimo_campo_linha_seguinte(text: str, marcador: str) -> float | None:
+    """DANFE em colunas: rótulo numa linha e valores monetários na linha seguinte."""
+    match = re.search(marcador, text, re.IGNORECASE)
+    if not match:
+        return None
+    proxima = re.search(r"\n[ \t]*([^\n]+)", text[match.end() :])
+    if not proxima:
+        return None
+    valores = _valores_monetarios_linha(proxima.group(1))
+    if not valores:
+        return None
+    return round(_parse_money(valores[-1]), 2)
+
+
+def extrair_valor_total_pdf(text: str) -> float:
+    # Canhoto / cabeçalho do DANFE (ex.: "Valor Total: 313,85 NF-e")
+    cabecalho = re.search(r"Valor\s+Total\s*:\s*([\d.,]+)", text, re.IGNORECASE)
+    if cabecalho:
+        valor = round(_parse_money(cabecalho.group(1)), 2)
+        if valor > 0:
+            return valor
+
+    # Valor na mesma linha do rótulo — [ \t] evita atravessar quebra de linha com \s
+    inline_patterns = [
+        r"VALOR\s+TOTAL\s+DA\s+NOTA[ \t]*(?:R\$)?[ \t]*([\d.,]+)",
+        r"VALOR\s+TOTAL\s+NOTA[ \t]*(?:R\$)?[ \t]*([\d.,]+)",
+        r"V\.?\s*TOTAL\s+DA\s+NOTA[ \t]*(?:R\$)?[ \t]*([\d.,]+)",
+        r"Valor\s+Total\s+(?:da\s+Nota)?[ \t]*(?:R\$)?[ \t]*([\d.,]+)",
+    ]
+    for pattern in inline_patterns:
+        for raw in reversed(re.findall(pattern, text, re.IGNORECASE)):
+            valor = round(_parse_money(raw), 2)
+            if valor > 0:
+                return valor
+
+    # Bloco "Cálculo do imposto": último valor da linha após o rótulo
+    for marcador in (
+        r"VALOR\s+TOTAL\s+DA\s+NOTA",
+        r"VALOR\s+TOTAL\s+DOS\s+PRODUTOS",
+    ):
+        valor = _valor_ultimo_campo_linha_seguinte(text, marcador)
+        if valor and valor > 0:
+            return valor
 
     raise ValueError(
         "Valor total da nota não encontrado no PDF. "

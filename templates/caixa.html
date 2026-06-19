@@ -8,19 +8,195 @@
   <div class="page-banner__main">
     <p class="page-eyebrow mb-2">Barracas e pagamentos</p>
     <h1 class="page-banner__title"><i class="bi bi-wallet2 text-success"></i> Caixa do festejo</h1>
-    <p class="muted mb-0">Lançamentos diários, importação de PDF, consolidação e sangrias.</p>
+    <p class="muted mb-0">
+      {% if view == 'lancar' %}
+      Abra o caixa de cada dia para importar PDF, lançar valores e registrar sangrias.
+      {% else %}
+      Consolidação de vendas, saídas, ranking de produtos e totais por forma de pagamento.
+      {% endif %}
+    </p>
   </div>
   <div class="page-banner__actions">
     <a href="/" class="btn"><i class="bi bi-grid-1x2"></i> Painel</a>
   </div>
 </section>
 
+{{ ui.section_subnav(subnav, view) }}
+
 <div class="kpi-strip kpi-strip--4">
   {{ ui.kpi_card('Total caixa (s/ leilão)', totais.total_caixa_sem_leilao|money, 'bi-cash-stack', 'green', true) }}
   {{ ui.kpi_card('Total vendas PDF', totais.total_vendas_pdf|money, 'bi-file-pdf', 'blue') }}
-  {{ ui.kpi_card('Sangrias', totais.sangrias|money, 'bi-cash-coin', 'danger') }}
+  {{ ui.kpi_card('Total saídas', totais.saidas_total|money, 'bi-box-arrow-up', 'danger', true) }}
   {{ ui.kpi_card('Dias lançados', totais.dias_count, 'bi-calendar3', 'neutral') }}
 </div>
+
+{% if view == 'lancar' %}
+
+<section class="card">
+  <h2><i class="bi bi-calendar-plus text-success"></i> Novo dia do festejo</h2>
+  <p class="muted help-note">Cadastre um dia para abrir o lançamento de caixa (PDF, valores e sangrias).</p>
+  <form method="post" action="/dias/novo" class="form-grid form-grid--wide">
+    <label>Data *<input type="date" name="data" required class="form-control"></label>
+    <label>Nº dia<input type="number" name="numero_dia" min="1" placeholder="Ex: 1" class="form-control"></label>
+    <label>Rótulo<input type="text" name="rotulo" placeholder="Ex: DIA 01 - Dom" class="form-control"></label>
+    <div class="form-actions"><button type="submit" class="btn primary"><i class="bi bi-plus-lg"></i> Criar e lançar</button></div>
+  </form>
+</section>
+
+<section class="card card--table">
+  <div class="card-header">
+    <h2 class="mb-0"><i class="bi bi-calendar3"></i> Caixa por dia</h2>
+    <span class="badge">{{ dias|length }} dia(s)</span>
+  </div>
+  {% if dias %}
+  <div class="table-wrap table-wrap--flush">
+    <table class="table-hover">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Dia</th>
+          <th>Total caixa</th>
+          <th>PDF</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in dias %}
+        <tr>
+          <td>{{ item.dia.data|datebr }}</td>
+          <td>{{ item.dia.rotulo or ('Dia ' ~ item.dia.numero_dia if item.dia.numero_dia else '—') }}</td>
+          <td><strong>{{ item.consolidacao.total_caixa_sem_leilao|money }}</strong></td>
+          <td>
+            {% if item.dia.relatorio_pdf %}
+              <span class="tag ok">Importado</span>
+            {% else %}
+              <span class="tag warn">Sem PDF</span>
+            {% endif %}
+          </td>
+          <td>
+            <a class="btn small primary" href="/caixa/dias/{{ item.dia.id }}">
+              <i class="bi bi-pencil-square"></i> Lançar
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-wallet2"></i>
+    <p>Nenhum dia cadastrado. Use o formulário acima para criar o primeiro dia.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2><i class="bi bi-lightning"></i> Atalhos</h2>
+  <ul class="day-links">
+    {% for item in dias %}
+    <li>
+      <a href="/caixa/dias/{{ item.dia.id }}">
+        <i class="bi bi-box-arrow-in-right"></i>
+        {{ item.dia.data|datebr }} — {{ item.dia.rotulo or 'Abrir caixa do dia' }}
+      </a>
+    </li>
+    {% else %}
+    <li class="muted">Cadastre um dia no formulário acima.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% else %}
+
+<section class="card card--saidas" id="saidas">
+  <div class="card-header">
+    <h2 class="mb-0"><i class="bi bi-box-arrow-up text-danger"></i> Saídas do caixa</h2>
+    <span class="badge">{{ totais.saidas_total|money }}</span>
+  </div>
+  <p class="muted help-note">Gratuidade (consumo dos funcionários no PDF) somada às sangrias registradas manualmente.</p>
+
+  <div class="kpi-strip kpi-strip--3">
+    {{ ui.kpi_card('Gratuidade (funcionários)', totais.gratuidade|money, 'bi-gift', 'gold', true) }}
+    {{ ui.kpi_card('Sangrias', totais.sangrias|money, 'bi-cash-coin', 'danger') }}
+    {{ ui.kpi_card('Total saídas', totais.saidas_total|money, 'bi-arrow-up-circle', 'danger', true) }}
+  </div>
+
+  {% if dias %}
+  <h3 class="saidas-subtitle"><i class="bi bi-calendar3"></i> Gratuidade por dia</h3>
+  <div class="table-wrap table-wrap--flush mb-4">
+    <table class="table-hover">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Dia</th>
+          <th>Gratuidade PDF</th>
+          <th>Sangrias</th>
+          <th>Total saídas</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in dias %}
+        {% if item.consolidacao.gratuidade_total or item.consolidacao.sangrias_total %}
+        <tr>
+          <td>{{ item.dia.data|datebr }}</td>
+          <td>{{ item.dia.rotulo or ('Dia ' ~ item.dia.numero_dia if item.dia.numero_dia else '—') }}</td>
+          <td>
+            {% if item.consolidacao.gratuidade_total %}
+              <span class="tag warn">{{ item.consolidacao.gratuidade_total|money }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ item.consolidacao.sangrias_total|money if item.consolidacao.sangrias_total else '—' }}</td>
+          <td><strong>{{ item.consolidacao.saidas_total|money }}</strong></td>
+          <td>
+            <a class="btn small" href="/caixa/dias/{{ item.dia.id }}#saidas"><i class="bi bi-eye"></i> Ver</a>
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if gratuidade.produtos %}
+  <h3 class="saidas-subtitle"><i class="bi bi-list-ul"></i> Produtos em gratuidade (consolidado)</h3>
+  <div class="table-wrap table-wrap--flush">
+    <table class="table-hover">
+      <thead>
+        <tr>
+          <th>Produto</th>
+          <th>Cód.</th>
+          <th>Quantidade</th>
+          <th>Valor (saída)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in gratuidade.produtos %}
+        <tr>
+          <td>{{ p.produto }}</td>
+          <td>{{ p.codigo or '—' }}</td>
+          <td>{{ p.quantidade }}</td>
+          <td><strong>{{ p.total|money }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="highlight-row">
+          <td colspan="3"><strong>Total gratuidade</strong></td>
+          <td><strong>{{ gratuidade.total|money }}</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% elif not totais.gratuidade %}
+  <div class="empty-state empty-state--compact">
+    <i class="bi bi-gift"></i>
+    <p>Importe os PDFs de vendas para registrar a gratuidade dos funcionários.</p>
+  </div>
+  {% endif %}
+</section>
 
 <section class="card">
   <h2><i class="bi bi-pie-chart"></i> Totais por forma de pagamento</h2>
@@ -157,6 +333,7 @@
           <th>Crédito</th>
           <th>Pix</th>
           <th>Total caixa</th>
+          <th>Gratuidade</th>
           <th>PDF</th>
           <th>Diferença</th>
           <th></th>
@@ -173,6 +350,11 @@
           <td>{{ item.consolidacao.pix|money }}</td>
           <td><strong>{{ item.consolidacao.total_caixa_sem_leilao|money }}</strong></td>
           <td>
+            {% if item.consolidacao.gratuidade_total %}
+              <span class="tag warn">{{ item.consolidacao.gratuidade_total|money }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
             {% if item.dia.relatorio_pdf %}
               {{ item.consolidacao.pdf_total_vendas|money }}
             {% else %}
@@ -187,8 +369,8 @@
             {% else %}—{% endif %}
           </td>
           <td>
-            <a class="btn small primary" href="/caixa/dias/{{ item.dia.id }}">
-              <i class="bi bi-pencil-square"></i> Lançar
+            <a class="btn small" href="/caixa/dias/{{ item.dia.id }}">
+              <i class="bi bi-eye"></i> Ver
             </a>
           </td>
         </tr>
@@ -204,19 +386,5 @@
   {% endif %}
 </section>
 
-<section class="card">
-  <h2><i class="bi bi-lightning"></i> Atalhos</h2>
-  <ul class="day-links">
-    {% for item in dias %}
-    <li>
-      <a href="/caixa/dias/{{ item.dia.id }}">
-        <i class="bi bi-box-arrow-in-right"></i>
-        {{ item.dia.data|datebr }} — {{ item.dia.rotulo or 'Abrir caixa do dia' }}
-      </a>
-    </li>
-    {% else %}
-    <li class="muted">Cadastre dias no Painel principal.</li>
-    {% endfor %}
-  </ul>
-</section>
+{% endif %}
 {% endblock %}

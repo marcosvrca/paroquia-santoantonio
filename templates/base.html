@@ -33,26 +33,66 @@
           <span class="sidebar-icon"><i class="bi bi-grid-1x2-fill"></i></span>
           <span class="sidebar-link-text">Painel</span>
         </a>
-        <a class="sidebar-link {% if request.url.path.startswith('/caixa') %}active{% endif %}" href="/caixa">
-          <span class="sidebar-icon"><i class="bi bi-wallet2"></i></span>
-          <span class="sidebar-link-text">Caixa</span>
-        </a>
-        <a class="sidebar-link {% if request.url.path.startswith('/rifa') %}active{% endif %}" href="/rifa">
-          <span class="sidebar-icon"><i class="bi bi-ticket-perforated"></i></span>
-          <span class="sidebar-link-text">Rifa</span>
-        </a>
-        <a class="sidebar-link {% if request.url.path.startswith('/despesas') %}active{% endif %}" href="/despesas">
-          <span class="sidebar-icon"><i class="bi bi-receipt"></i></span>
-          <span class="sidebar-link-text">Despesas</span>
-        </a>
-        <a class="sidebar-link {% if request.url.path.startswith('/leilao') %}active{% endif %}" href="/leilao">
-          <span class="sidebar-icon"><i class="bi bi-hammer"></i></span>
-          <span class="sidebar-link-text">Leilão</span>
-        </a>
-        <a class="sidebar-link {% if request.url.path.startswith('/relatorio') %}active{% endif %}" href="/relatorio">
-          <span class="sidebar-icon"><i class="bi bi-graph-up-arrow"></i></span>
-          <span class="sidebar-link-text">Relatório</span>
-        </a>
+        <div class="sidebar-group">
+          <a class="sidebar-link {% if request.url.path.startswith('/caixa') %}active{% endif %}" href="/caixa/visao-geral">
+            <span class="sidebar-icon"><i class="bi bi-wallet2"></i></span>
+            <span class="sidebar-link-text">Caixa</span>
+          </a>
+          {% if request.url.path.startswith('/caixa') %}
+          <div class="sidebar-sub">
+            <a class="sidebar-sub-link {% if '/lancar' not in request.url.path %}active{% endif %}" href="/caixa/visao-geral">Visão geral</a>
+            <a class="sidebar-sub-link {% if '/lancar' in request.url.path %}active{% endif %}" href="/caixa/lancar">Lançar caixa</a>
+          </div>
+          {% endif %}
+        </div>
+        <div class="sidebar-group">
+          <a class="sidebar-link {% if request.url.path.startswith('/rifa') %}active{% endif %}" href="/rifa/visao-geral">
+            <span class="sidebar-icon"><i class="bi bi-ticket-perforated"></i></span>
+            <span class="sidebar-link-text">Rifa</span>
+          </a>
+          {% if request.url.path.startswith('/rifa') %}
+          <div class="sidebar-sub">
+            <a class="sidebar-sub-link {% if '/lancar' not in request.url.path %}active{% endif %}" href="/rifa/visao-geral">Visão geral</a>
+            <a class="sidebar-sub-link {% if '/lancar' in request.url.path %}active{% endif %}" href="/rifa/lancar">Lançar rifa</a>
+          </div>
+          {% endif %}
+        </div>
+        <div class="sidebar-group">
+          <a class="sidebar-link {% if request.url.path.startswith('/despesas') %}active{% endif %}" href="/despesas/visao-geral">
+            <span class="sidebar-icon"><i class="bi bi-receipt"></i></span>
+            <span class="sidebar-link-text">Despesas</span>
+          </a>
+          {% if request.url.path.startswith('/despesas') %}
+          <div class="sidebar-sub">
+            <a class="sidebar-sub-link {% if '/lancar' not in request.url.path %}active{% endif %}" href="/despesas/visao-geral">Visão geral</a>
+            <a class="sidebar-sub-link {% if '/lancar' in request.url.path %}active{% endif %}" href="/despesas/lancar">Lançar despesas</a>
+          </div>
+          {% endif %}
+        </div>
+        <div class="sidebar-group">
+          <a class="sidebar-link {% if request.url.path.startswith('/leilao') %}active{% endif %}" href="/leilao/visao-geral">
+            <span class="sidebar-icon"><i class="bi bi-hammer"></i></span>
+            <span class="sidebar-link-text">Leilão</span>
+          </a>
+          {% if request.url.path.startswith('/leilao') %}
+          <div class="sidebar-sub">
+            <a class="sidebar-sub-link {% if '/lancar' not in request.url.path %}active{% endif %}" href="/leilao/visao-geral">Visão geral</a>
+            <a class="sidebar-sub-link {% if '/lancar' in request.url.path %}active{% endif %}" href="/leilao/lancar">Lançar leilão</a>
+          </div>
+          {% endif %}
+        </div>
+        <div class="sidebar-group">
+          <a class="sidebar-link {% if request.url.path.startswith('/relatorio') %}active{% endif %}" href="/relatorio/visao-geral">
+            <span class="sidebar-icon"><i class="bi bi-graph-up-arrow"></i></span>
+            <span class="sidebar-link-text">Relatório</span>
+          </a>
+          {% if request.url.path.startswith('/relatorio') %}
+          <div class="sidebar-sub">
+            <a class="sidebar-sub-link {% if '/lancar' not in request.url.path %}active{% endif %}" href="/relatorio/visao-geral">Visão geral</a>
+            <a class="sidebar-sub-link {% if '/lancar' in request.url.path %}active{% endif %}" href="/relatorio/lancar">Lançamentos</a>
+          </div>
+          {% endif %}
+        </div>
         <a class="sidebar-link {% if request.url.path.startswith('/infografico') %}active{% endif %}" href="/infografico">
           <span class="sidebar-icon"><i class="bi bi-image"></i></span>
           <span class="sidebar-link-text">Infográfico</span>
@@ -80,7 +120,7 @@
           <span class="topbar-page">{% block topbar_title %}Festejo de Santo Antônio{% endblock %}</span>
         </div>
         <div class="topbar-actions">
-          <a href="/relatorio" class="btn btn-ghost topbar-cta d-none d-md-inline-flex">
+          <a href="/relatorio/visao-geral" class="btn btn-ghost topbar-cta d-none d-md-inline-flex">
             <i class="bi bi-file-earmark-bar-graph"></i>
             <span>Relatório</span>
           </a>
@@ -98,6 +138,10 @@
         </div>
       </footer>
     </div>
+  </div>
+
+  <div id="appToastStack" class="app-toast-stack" aria-live="polite" aria-atomic="true">
+    {% block toast_stack %}{% endblock %}
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

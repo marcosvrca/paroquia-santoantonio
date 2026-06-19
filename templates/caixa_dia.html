@@ -6,23 +6,25 @@
 {% block content %}
 <div class="page-header">
   <div class="page-header__intro">
-    <a href="/caixa" class="back-link"><i class="bi bi-arrow-left"></i> Voltar ao caixa</a>
+    <a href="/caixa/lancar" class="back-link"><i class="bi bi-arrow-left"></i> Voltar ao caixa</a>
     <p class="page-eyebrow">Lançamento do dia</p>
     <h1>{{ dia.rotulo or ('Dia ' ~ dia.numero_dia if dia.numero_dia else dia.data|datebr) }}</h1>
     <p class="muted mb-0">{{ dia.data|datebr }}</p>
   </div>
 </div>
 
-<div class="kpi-strip kpi-strip--3">
+<div class="kpi-strip kpi-strip--4">
   {{ ui.kpi_card('Total caixa', consolidacao.total_caixa_sem_leilao|money, 'bi-wallet2', 'green', true) }}
   {{ ui.kpi_card('Vendas PDF', consolidacao.pdf_total_vendas|money if dia.relatorio_pdf else '—', 'bi-file-pdf', 'blue') }}
-  {{ ui.kpi_card('Sangrias', consolidacao.sangrias_total|money, 'bi-cash-coin', 'danger') }}
+  {{ ui.kpi_card('Gratuidade', consolidacao.gratuidade_total|money if consolidacao.gratuidade_total else '—', 'bi-gift', 'gold') }}
+  {{ ui.kpi_card('Total saídas', consolidacao.saidas_total|money, 'bi-box-arrow-up', 'danger', true) }}
 </div>
 
 <nav class="section-nav mb-4" aria-label="Seções do caixa">
   <a href="#pdf"><i class="bi bi-file-pdf"></i> PDF</a>
   <a href="#consolidacao"><i class="bi bi-check2-square"></i> Consolidação</a>
   <a href="#caixa"><i class="bi bi-wallet2"></i> Lançamento</a>
+  <a href="#saidas"><i class="bi bi-box-arrow-up"></i> Saídas</a>
   <a href="#sangrias"><i class="bi bi-cash-coin"></i> Sangrias</a>
 </nav>
 
@@ -35,27 +37,63 @@
   </form>
 
   {% if dia.relatorio_pdf %}
-  <div class="kpi-strip kpi-strip--4">
+  <div class="kpi-strip kpi-strip--5">
     {{ ui.kpi_card('Dinheiro', dia.relatorio_pdf.dinheiro|money, 'bi-cash', 'green') }}
     {{ ui.kpi_card('Débito', dia.relatorio_pdf.debito|money, 'bi-credit-card', 'blue') }}
     {{ ui.kpi_card('Crédito', dia.relatorio_pdf.credito|money, 'bi-credit-card-2-front', 'purple') }}
     {{ ui.kpi_card('Pix', dia.relatorio_pdf.pix|money, 'bi-qr-code', 'neutral') }}
     {{ ui.kpi_card('Total vendas', dia.relatorio_pdf.total_vendas|money, 'bi-cart-check', 'green', true) }}
   </div>
-  {% if dia.relatorio_pdf.produtos %}
+  {% if dia.relatorio_pdf.total_gratuidade %}
+  <div class="gratuidade-banner">
+    <div class="gratuidade-banner__icon"><i class="bi bi-gift-fill"></i></div>
+    <div>
+      <span class="gratuidade-banner__label">Total gratuidade (saída — funcionários)</span>
+      <strong class="gratuidade-banner__value">{{ dia.relatorio_pdf.total_gratuidade|money }}</strong>
+      <p class="muted mb-0">Valor extraído do PDF e contabilizado nas saídas do caixa.</p>
+    </div>
+  </div>
+  {% endif %}
+  {% set produtos_vendas = dia.relatorio_pdf.produtos|selectattr('secao', 'equalto', 'vendas')|list %}
+  {% set produtos_gratuidade = dia.relatorio_pdf.produtos|selectattr('secao', 'equalto', 'gratuidade')|list %}
+  {% if produtos_vendas %}
   <details class="details-block">
-    <summary>Ver produtos ({{ dia.relatorio_pdf.produtos|length }})</summary>
+    <summary>Ver produtos vendidos ({{ produtos_vendas|length }})</summary>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Seção</th><th>Cód.</th><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead>
+        <thead><tr><th>Cód.</th><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead>
         <tbody>
-          {% for p in dia.relatorio_pdf.produtos %}
+          {% for p in produtos_vendas %}
           <tr>
-            <td>{{ p.secao }}</td><td>{{ p.codigo }}</td><td>{{ p.produto }}</td>
+            <td>{{ p.codigo }}</td><td>{{ p.produto }}</td>
             <td>{{ p.quantidade }}</td><td>{{ p.valor_unitario|money }}</td><td>{{ p.total|money }}</td>
           </tr>
           {% endfor %}
         </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+  {% if produtos_gratuidade %}
+  <details class="details-block details-block--gratuidade" open>
+    <summary>Ver gratuidade — saídas de funcionários ({{ produtos_gratuidade|length }})</summary>
+    <div class="table-wrap">
+      <table class="table-gratuidade">
+        <thead><tr><th>Cód.</th><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Valor saída</th></tr></thead>
+        <tbody>
+          {% for p in produtos_gratuidade %}
+          <tr>
+            <td>{{ p.codigo }}</td><td>{{ p.produto }}</td>
+            <td>{{ p.quantidade }}</td><td>{{ p.valor_unitario|money }}</td><td><strong>{{ p.total|money }}</strong></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="highlight-row">
+            <td colspan="4"><strong>Total gratuidade</strong></td>
+            <td><strong>{{ dia.relatorio_pdf.total_gratuidade|money }}</strong></td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   </details>
@@ -136,6 +174,46 @@
     </div>
     <button type="submit" class="btn primary"><i class="bi bi-check-lg"></i> Salvar caixa</button>
   </form>
+  {% endif %}
+</section>
+
+<section class="card card--saidas" id="saidas">
+  <h2><i class="bi bi-box-arrow-up text-danger"></i> Saídas do caixa</h2>
+  <p class="muted">Gratuidade do PDF (consumo dos funcionários) + sangrias registradas manualmente.</p>
+
+  <div class="kpi-strip kpi-strip--3 mb-4">
+    {{ ui.kpi_card('Gratuidade (PDF)', consolidacao.gratuidade_total|money, 'bi-gift', 'gold') }}
+    {{ ui.kpi_card('Sangrias', consolidacao.sangrias_total|money, 'bi-cash-coin', 'danger') }}
+    {{ ui.kpi_card('Total saídas', consolidacao.saidas_total|money, 'bi-arrow-up-circle', 'danger', true) }}
+  </div>
+
+  {% if consolidacao.gratuidade_produtos %}
+  <h3 class="saidas-subtitle"><i class="bi bi-gift"></i> Gratuidade — detalhamento</h3>
+  <div class="table-wrap mb-4">
+    <table class="table-gratuidade">
+      <thead><tr><th>Produto</th><th>Cód.</th><th>Qtd</th><th>Valor saída</th></tr></thead>
+      <tbody>
+        {% for p in consolidacao.gratuidade_produtos %}
+        <tr>
+          <td>{{ p.produto }}</td>
+          <td>{{ p.codigo or '—' }}</td>
+          <td>{{ p.quantidade }}</td>
+          <td><strong>{{ p.total|money }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="highlight-row">
+          <td colspan="3"><strong>Subtotal gratuidade</strong></td>
+          <td><strong>{{ consolidacao.gratuidade_total|money }}</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% elif dia.relatorio_pdf and not consolidacao.gratuidade_total %}
+  <p class="tag ok mb-4">Nenhuma gratuidade registrada neste dia.</p>
+  {% elif not dia.relatorio_pdf %}
+  <p class="tag warn mb-4">Importe o PDF para registrar a gratuidade automaticamente.</p>
   {% endif %}
 </section>
 

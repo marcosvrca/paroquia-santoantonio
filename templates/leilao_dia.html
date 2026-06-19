@@ -6,7 +6,7 @@
 {% block content %}
 <div class="page-header">
   <div class="page-header__intro">
-    <a href="/leilao" class="back-link"><i class="bi bi-arrow-left"></i> Voltar ao leilão</a>
+    <a href="/leilao/lancar" class="back-link"><i class="bi bi-arrow-left"></i> Voltar ao leilão</a>
     <p class="page-eyebrow">Lançamento do dia</p>
     <h1>{{ dia.rotulo or ('Dia ' ~ dia.numero_dia if dia.numero_dia else dia.data|datebr) }}</h1>
     <p class="muted mb-0">{{ dia.data|datebr }} · Saldo do dia: <strong>{{ consolidacao.saldo_leilao_dia|money }}</strong></p>

@@ -8,9 +8,17 @@
   <div class="page-header__intro">
     <p class="page-eyebrow">Prestação de contas</p>
     <h1><i class="bi bi-ticket-perforated"></i> Rifas</h1>
-    <p class="muted mb-0">Modelo da planilha: doações (A), despesas (B), arrecadação (C) e saldo final (A+C−B). Bloco = R$ {{ totais.preco_bloco|money }}.</p>
+    <p class="muted mb-0">
+      {% if view == 'lancar' %}
+      Importe a planilha Excel ou cadastre doações, despesas e vendas manualmente.
+      {% else %}
+      Modelo da planilha: doações (A), despesas (B), arrecadação (C) e saldo final (A+C−B). Bloco = R$ {{ totais.preco_bloco|money }}.
+      {% endif %}
+    </p>
   </div>
 </div>
+
+{{ ui.section_subnav(subnav, view) }}
 
 <div class="kpi-strip kpi-strip--4">
   {{ ui.kpi_card('Doações (A)', totais.doacoes|money, 'bi-heart', 'green') }}
@@ -19,109 +27,57 @@
   {{ ui.kpi_card('Saldo (A+C−B)', totais.saldo_final|money, 'bi-piggy-bank', 'gold', true) }}
 </div>
 
+{% if view == 'lancar' %}
 
-
-{% if erro %}
-{{ ui.alerta_erro(erro) }}
-{% endif %}
-{% if sucesso %}
-{{ ui.alerta_sucesso(sucesso) }}
-{% endif %}
-
-
+{% if erro %}{{ ui.alerta_erro(erro) }}{% endif %}
+{% if sucesso %}{{ ui.alerta_sucesso(sucesso) }}{% endif %}
 
 <section class="card">
-
   <h2><i class="bi bi-file-earmark-spreadsheet text-success"></i> Importar planilha Excel</h2>
-
   <form method="post" action="/rifa/importar" enctype="multipart/form-data" class="form-grid">
-
     <label class="full-width">
-
       Arquivo (.xlsx)
-
       <input type="file" name="arquivo" accept=".xlsx,.xlsm" required>
-
     </label>
-
     <label class="full-width">
-
       <input type="checkbox" name="substituir" value="sim" checked> Substituir lançamentos existentes da rifa
-
     </label>
-
     <p class="muted full-width help-note">
-
       Lê as abas <strong>Prestação de contas</strong> (doações e despesas) e <strong>INCENTIVO</strong> (vendedores, rifas e premiação).
-
     </p>
-
     <button type="submit" class="btn primary">Importar planilha</button>
-
   </form>
-
 </section>
-
-
 
 <section class="card grid-2">
-
   <div>
-
     <h2>Doações / patrocínios (A)</h2>
-
     <form method="post" action="/rifa" class="form-inline">
-
       <input type="hidden" name="categoria" value="doacao">
-
       <input type="text" name="descricao" placeholder="Ex.: Vereador Jotan" required>
-
       <input type="text" name="valor" placeholder="Valor" required>
-
       <button type="submit" class="btn primary">Adicionar</button>
-
     </form>
-
   </div>
-
   <div>
-
     <h2>Despesas (B)</h2>
-
     <form method="post" action="/rifa" class="form-inline">
-
       <input type="hidden" name="categoria" value="despesa">
-
       <input type="text" name="descricao" placeholder="Ex.: Moto, pedreiro..." required>
-
       <input type="text" name="valor" placeholder="Valor" required>
-
       <button type="submit" class="btn primary">Adicionar</button>
-
     </form>
-
   </div>
-
 </section>
 
-
-
 <section class="card">
-
   <h2>Incentivo — vendas por vendedor</h2>
-
   <form method="post" action="/rifa" class="form-grid">
-
     <input type="hidden" name="categoria" value="venda">
-
     <label>
-
       Vendedor *
-
       <input type="text" name="vendedor" required placeholder="Nome">
-
     </label>
-
     <label>
       Valor em rifas (R$) *
       <input type="text" name="valor" required placeholder="2400,00">
@@ -129,164 +85,28 @@
     <button type="submit" class="btn primary">Registrar venda</button>
   </form>
   <form method="post" action="/rifa" class="form-inline" style="margin-top:1rem">
-
     <input type="hidden" name="categoria" value="premiacao">
-
     <input type="text" name="vendedor" placeholder="Vendedor" required>
-
     <input type="text" name="valor" placeholder="Premiação R$" required>
-
     <button type="submit" class="btn">Registrar premiação</button>
-
   </form>
-
 </section>
-
-
 
 <section class="card">
-
-  <h2>Resumo arrecadação (C)</h2>
-
-  <div class="kpi-strip kpi-strip--4">
-    {{ ui.kpi_card('Total vendido (C)', totais.arrecadado|money, 'bi-cash-stack', 'green') }}
-    {{ ui.kpi_card('Rifas (C ÷ 2)', totais.valor_rifas|money, 'bi-ticket', 'blue') }}
-    {{ ui.kpi_card('Blocos', totais.qtd_blocos, 'bi-grid-3x3', 'purple') }}
-    {{ ui.kpi_card('Premiações', totais.premiacoes|money, 'bi-award', 'gold') }}
-  </div>
-
-</section>
-
-
-
-{% if vendedores %}
-
-<section class="card">
-
-  <h2>INCENTIVO — ranking de vendedores</h2>
-
-  <div class="table-wrap">
-
-    <table>
-
-      <thead>
-
-        <tr>
-
-          <th>Nome</th>
-
-          <th>Rifas (R$)</th>
-
-          <th>Bloco</th>
-
-          <th>Premiação</th>
-
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        {% for v in vendedores %}
-
-        <tr>
-
-          <td>{{ v.nome }}</td>
-
-          <td>{{ v.rifas|money }}</td>
-
-          <td>{{ v.blocos }}</td>
-
-          <td>{% if v.premiacao %}{{ v.premiacao|money }}{% else %}—{% endif %}</td>
-
-        </tr>
-
-        {% endfor %}
-
-      </tbody>
-
-    </table>
-
-  </div>
-
-</section>
-
-{% endif %}
-
-
-
-<section class="card grid-2">
-
-  <div>
-
-    <h2>Doações cadastradas</h2>
-
-    {% set lista = movimentos|selectattr('categoria', 'equalto', 'doacao')|list %}
-
-    {% if lista %}
-
-    <ul class="simple-list">
-
-      {% for m in lista %}<li>{{ m.descricao }} — {{ m.valor|money }}</li>{% endfor %}
-
-    </ul>
-
-    {% else %}<p class="muted">Nenhuma doação.</p>{% endif %}
-
-  </div>
-
-  <div>
-
-    <h2>Despesas cadastradas</h2>
-
-    {% set lista = movimentos|selectattr('categoria', 'equalto', 'despesa')|list %}
-
-    {% if lista %}
-
-    <ul class="simple-list">
-
-      {% for m in lista %}<li>{{ m.descricao }} — {{ m.valor|money }}</li>{% endfor %}
-
-    </ul>
-
-    {% else %}<p class="muted">Nenhuma despesa.</p>{% endif %}
-
-  </div>
-
-</section>
-
-
-
-<section class="card">
-
   <h2>Todos os lançamentos</h2>
-
   {% if movimentos %}
-
   <div class="table-wrap">
-
     <table>
-
       <thead>
-
         <tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Vendedor</th><th>Valor</th><th>Ações</th></tr>
-
       </thead>
-
       <tbody>
-
         {% for m in movimentos %}
-
         <tr>
-
           <td>{{ m.data|datebr if m.data else '—' }}</td>
-
           <td><span class="tag">{{ m.categoria }}</span></td>
-
           <td>{{ m.descricao }}</td>
-
           <td>{{ m.vendedor or '—' }}</td>
-
           <td>{{ m.valor|money }}</td>
           <td class="actions-cell">
             <details class="edit-details">
@@ -307,22 +127,101 @@
             {{ ui.btn_excluir('/rifa/' ~ m.id ~ '/excluir') }}
           </td>
         </tr>
-
         {% endfor %}
-
       </tbody>
-
     </table>
-
   </div>
-
   {% else %}
-
   <p class="muted">Importe a planilha ou cadastre manualmente.</p>
-
   {% endif %}
-
 </section>
 
-{% endblock %}
+{% else %}
 
+<section class="card">
+  <h2>Resumo arrecadação (C)</h2>
+  <div class="kpi-strip kpi-strip--4">
+    {{ ui.kpi_card('Total vendido (C)', totais.arrecadado|money, 'bi-cash-stack', 'green') }}
+    {{ ui.kpi_card('Rifas (C ÷ 2)', totais.valor_rifas|money, 'bi-ticket', 'blue') }}
+    {{ ui.kpi_card('Blocos', totais.qtd_blocos, 'bi-grid-3x3', 'purple') }}
+    {{ ui.kpi_card('Premiações', totais.premiacoes|money, 'bi-award', 'gold') }}
+  </div>
+</section>
+
+{% if vendedores %}
+<section class="card">
+  <h2>INCENTIVO — ranking de vendedores</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Rifas (R$)</th>
+          <th>Bloco</th>
+          <th>Premiação</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in vendedores %}
+        <tr>
+          <td>{{ v.nome }}</td>
+          <td>{{ v.rifas|money }}</td>
+          <td>{{ v.blocos }}</td>
+          <td>{% if v.premiacao %}{{ v.premiacao|money }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="card grid-2">
+  <div>
+    <h2>Doações cadastradas</h2>
+    {% set lista = movimentos|selectattr('categoria', 'equalto', 'doacao')|list %}
+    {% if lista %}
+    <ul class="simple-list">
+      {% for m in lista %}<li>{{ m.descricao }} — {{ m.valor|money }}</li>{% endfor %}
+    </ul>
+    {% else %}<p class="muted">Nenhuma doação.</p>{% endif %}
+  </div>
+  <div>
+    <h2>Despesas cadastradas</h2>
+    {% set lista = movimentos|selectattr('categoria', 'equalto', 'despesa')|list %}
+    {% if lista %}
+    <ul class="simple-list">
+      {% for m in lista %}<li>{{ m.descricao }} — {{ m.valor|money }}</li>{% endfor %}
+    </ul>
+    {% else %}<p class="muted">Nenhuma despesa.</p>{% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Todos os lançamentos</h2>
+  {% if movimentos %}
+  <div class="table-wrap">
+    <table class="table-hover">
+      <thead>
+        <tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Vendedor</th><th>Valor</th></tr>
+      </thead>
+      <tbody>
+        {% for m in movimentos %}
+        <tr>
+          <td>{{ m.data|datebr if m.data else '—' }}</td>
+          <td><span class="tag">{{ m.categoria }}</span></td>
+          <td>{{ m.descricao }}</td>
+          <td>{{ m.vendedor or '—' }}</td>
+          <td>{{ m.valor|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">Nenhum lançamento. <a href="/rifa/lancar">Lançar rifa</a></p>
+  {% endif %}
+</section>
+
+{% endif %}
+{% endblock %}

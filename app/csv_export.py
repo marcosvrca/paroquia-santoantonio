@@ -133,6 +133,8 @@ def gerar_csv_relatorio(db: Session, festejo_id: int, secoes: list[str]) -> tupl
         linhas.append(["Pix", _fmt_num(totais["pix"])])
         linhas.append(["Troco", _fmt_num(totais["troco"])])
         linhas.append(["Sangrias", _fmt_num(totais["sangrias"])])
+        linhas.append(["Gratuidade (funcionários)", _fmt_num(totais["gratuidade"])])
+        linhas.append(["Total saídas", _fmt_num(totais["saidas_total"])])
         linhas.append(["Total caixa (sem leilão)", _fmt_num(totais["total_caixa_sem_leilao"])])
         linhas.append(["Total vendas PDF", _fmt_num(totais["total_vendas_pdf"])])
         linhas.append(["Dias lançados", str(totais["dias_count"])])
