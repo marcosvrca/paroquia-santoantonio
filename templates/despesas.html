@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Despesas / Notas Fiscais — Festejo{% endblock %}
+{% block topbar_title %}Despesas{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header__intro">
+    <p class="page-eyebrow">Notas fiscais</p>
+    <h1><i class="bi bi-receipt-cutoff"></i> Despesas</h1>
+    <p class="muted mb-0">Importe XML/PDF (DANFE) ou cadastre manualmente quando não houver arquivo eletrônico.</p>
+  </div>
+</div>
+
+<div class="kpi-strip kpi-strip--2">
+  {{ ui.kpi_card('Notas cadastradas', totais.quantidade, 'bi-receipt', 'blue') }}
+  {{ ui.kpi_card('Total despesas NF', totais.total|money, 'bi-currency-dollar', 'gold', true) }}
+</div>
+
+{{ ui.alerta_erro(erro) }}
+{{ ui.alerta_sucesso(sucesso) }}
+
+<section class="card">
+  <h2><i class="bi bi-cloud-upload text-success"></i> Importar nota (XML ou PDF)</h2>
+  <form method="post" action="/despesas/importar" enctype="multipart/form-data" class="form-grid">
+    <label class="full-width">
+      Chave de acesso (44 dígitos)
+      <input type="text" name="chave" maxlength="60" placeholder="3526... (opcional se o PDF/XML já tiver a chave)" class="form-control">
+    </label>
+    <label class="full-width">
+      Arquivo da nota (XML ou PDF)
+      <input type="file" name="arquivo_nota" accept=".xml,.pdf,text/xml,application/xml,application/pdf" class="form-control">
+    </label>
+    <p class="muted full-width help-note mb-0">
+      Aceita <strong>XML</strong> ou <strong>PDF do DANFE</strong>. PDFs escaneados (foto) não funcionam.
+    </p>
+    <div><button type="submit" class="btn primary"><i class="bi bi-upload"></i> Importar nota</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2><i class="bi bi-pencil-square text-success"></i> Cadastro manual</h2>
+  <p class="muted help-note">Use quando não tiver XML nem DANFE — nota de serviço, cupom ou nota em papel.</p>
+  <form method="post" action="/despesas/manual" class="form-grid">
+    <label>Fornecedor / emitente *<input type="text" name="emitente_nome" required maxlength="200" class="form-control"></label>
+    <label>Valor *<input type="text" name="valor" required placeholder="1.500,00" class="form-control"></label>
+    <label>Categoria *
+      <select name="categoria" required class="form-control">
+        {% for cat in categorias %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Data da nota<input type="date" name="data_emissao" class="form-control"></label>
+    <label>Número NF<input type="text" name="numero" maxlength="20" class="form-control"></label>
+    <label>Série<input type="text" name="serie" maxlength="10" value="1" class="form-control"></label>
+    <label>CNPJ / CPF<input type="text" name="emitente_cnpj" maxlength="20" class="form-control"></label>
+    <label class="full-width">Chave (opcional)<input type="text" name="chave" maxlength="60" class="form-control"></label>
+    <label class="full-width">Natureza / descrição<input type="text" name="natureza_operacao" maxlength="255" class="form-control"></label>
+    <label class="full-width">Itens / observações<input type="text" name="produtos_resumo" maxlength="500" class="form-control"></label>
+    <div><button type="submit" class="btn primary"><i class="bi bi-check-lg"></i> Cadastrar despesa</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2><i class="bi bi-tags text-success"></i> Categorias automáticas</h2>
+  <div class="tag-list">
+    {% for cat in categorias %}<span class="tag">{{ cat }}</span>{% endfor %}
+  </div>
+</section>
+
+<section class="card">
+  <h2><i class="bi bi-table text-success"></i> Notas cadastradas</h2>
+  {% if notas %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Emitente</th>
+          <th>NF</th>
+          <th>Natureza</th>
+          <th>Categoria</th>
+          <th>Valor</th>
+          <th>Origem</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for nota in notas %}
+        <tr>
+          <td>{{ nota.data_emissao|datebr if nota.data_emissao else '—' }}</td>
+          <td>{{ nota.emitente_nome }}</td>
+          <td>{{ nota.numero }}/{{ nota.serie }}</td>
+          <td title="{{ nota.natureza_operacao }}">{{ nota.natureza_operacao[:40] }}{% if nota.natureza_operacao|length > 40 %}…{% endif %}</td>
+          <td><span class="tag ok">{{ nota.categoria }}</span></td>
+          <td><strong>{{ nota.valor_total|money }}</strong></td>
+          <td>
+            {% if nota.chave|nota_manual %}<span class="tag">Manual</span>
+            {% elif nota.xml_arquivo and nota.xml_arquivo.endswith('.pdf') %}<span class="tag">PDF</span>
+            {% elif nota.xml_arquivo %}<span class="tag">XML</span>
+            {% else %}<span class="tag" title="{{ nota.chave }}">NF-e</span>{% endif %}
+          </td>
+          <td class="actions-cell">
+            <details class="edit-details">
+              <summary class="btn small"><i class="bi bi-pencil"></i> Editar</summary>
+              <div class="edit-panel">
+                <form method="post" action="/despesas/{{ nota.id }}/editar" class="form-grid">
+                  <label>Emitente<input type="text" name="emitente_nome" value="{{ nota.emitente_nome }}" required class="form-control"></label>
+                  <label>Valor<input type="text" name="valor" value="{{ '%.2f'|format(nota.valor_total)|replace('.', ',') }}" required class="form-control"></label>
+                  <label>Categoria
+                    <select name="categoria" required class="form-control">
+                      {% for cat in categorias %}
+                      <option value="{{ cat }}" {% if cat == nota.categoria %}selected{% endif %}>{{ cat }}</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+                  <label>Data<input type="date" name="data_emissao" value="{{ nota.data_emissao.strftime('%Y-%m-%d') if nota.data_emissao else '' }}" class="form-control"></label>
+                  <label>NF<input type="text" name="numero" value="{{ nota.numero }}" class="form-control"></label>
+                  <label>Série<input type="text" name="serie" value="{{ nota.serie }}" class="form-control"></label>
+                  <label class="full-width">Natureza<input type="text" name="natureza_operacao" value="{{ nota.natureza_operacao }}" class="form-control"></label>
+                  <label class="full-width">Itens<input type="text" name="produtos_resumo" value="{{ nota.produtos_resumo }}" class="form-control"></label>
+                  <div><button type="submit" class="btn small primary">Salvar</button></div>
+                </form>
+              </div>
+            </details>
+            {{ ui.btn_excluir('/despesas/' ~ nota.id ~ '/excluir', 'Excluir nota e despesa vinculada?') }}
+          </td>
+        </tr>
+        {% if nota.produtos_resumo %}
+        <tr class="sub-row"><td colspan="8"><small><i class="bi bi-box-seam"></i> {{ nota.produtos_resumo }}</small></td></tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-inbox"></i>
+    <p>Nenhuma nota cadastrada ainda.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

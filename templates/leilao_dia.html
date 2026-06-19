@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Leilão {{ dia.data|datebr }} — Festejo{% endblock %}
+{% block topbar_title %}Leilão · {{ dia.data|datebr }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header__intro">
+    <a href="/leilao" class="back-link"><i class="bi bi-arrow-left"></i> Voltar ao leilão</a>
+    <p class="page-eyebrow">Lançamento do dia</p>
+    <h1>{{ dia.rotulo or ('Dia ' ~ dia.numero_dia if dia.numero_dia else dia.data|datebr) }}</h1>
+    <p class="muted mb-0">{{ dia.data|datebr }} · Saldo do dia: <strong>{{ consolidacao.saldo_leilao_dia|money }}</strong></p>
+  </div>
+</div>
+
+<section class="card" id="leilao">
+  <h2><i class="bi bi-hammer"></i> Lançamentos do leilão</h2>
+  <p class="muted">Valores pagos no caixa físico devem ser informados em <a href="/caixa/dias/{{ dia.id }}#caixa">Caixa → Leilão pago aqui</a>.</p>
+  <form method="post" action="/dias/{{ dia.id }}/leilao" class="form-inline">
+    <select name="tipo" required class="form-control">
+      <option value="entrada">Entrada (arrecadação)</option>
+      <option value="saida">Saída (despesa/premiação)</option>
+    </select>
+    <input type="text" name="descricao" placeholder="Descrição" required class="form-control">
+    <input type="number" step="0.01" name="valor" placeholder="Valor" required class="form-control">
+    <button type="submit" class="btn primary"><i class="bi bi-plus-lg"></i> Lançar</button>
+  </form>
+  {% if dia.leilao_movimentos %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for m in dia.leilao_movimentos %}
+        <tr>
+          <td><span class="tag {{ 'ok' if m.tipo == 'entrada' else 'bad' }}">{{ m.tipo }}</span></td>
+          <td>{{ m.descricao }}</td>
+          <td>{{ m.valor|money }}</td>
+          <td class="actions-cell">
+            <details class="edit-details">
+              <summary class="btn small"><i class="bi bi-pencil"></i> Editar</summary>
+              <div class="edit-panel">
+                <form method="post" action="/leilao/{{ m.id }}/editar" class="form-inline">
+                  <select name="tipo" required>
+                    <option value="entrada" {% if m.tipo == 'entrada' %}selected{% endif %}>Entrada</option>
+                    <option value="saida" {% if m.tipo == 'saida' %}selected{% endif %}>Saída</option>
+                  </select>
+                  <input type="text" name="descricao" value="{{ m.descricao }}" required>
+                  <input type="number" step="0.01" name="valor" value="{{ m.valor }}" required>
+                  <button type="submit" class="btn small primary">Salvar</button>
+                </form>
+              </div>
+            </details>
+            {{ ui.btn_excluir('/leilao/' ~ m.id ~ '/excluir') }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-hammer"></i>
+    <p>Nenhum lançamento de leilão neste dia.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

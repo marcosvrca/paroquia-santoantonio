@@ -1,0 +1,35 @@
+{% macro btn_excluir(url, msg='Excluir este lançamento?') %}
+<form method="post" action="{{ url }}" class="inline-form d-inline">
+  <button type="submit" class="btn btn-sm danger" onclick="return confirm('{{ msg }}')">
+    <i class="bi bi-trash3"></i> Excluir
+  </button>
+</form>
+{% endmacro %}
+
+{% macro kpi_card(label, value, icon='bi-bar-chart-line', tone='', highlight=false) %}
+<article class="kpi-card{% if tone %} kpi-card--{{ tone }}{% endif %}{% if highlight %} kpi-card--highlight{% endif %}">
+  <span class="kpi-card__icon"><i class="bi {{ icon }}"></i></span>
+  <div class="kpi-card__content">
+    <span class="kpi-card__label">{{ label }}</span>
+    <strong class="kpi-card__value">{{ value }}</strong>
+  </div>
+</article>
+{% endmacro %}
+
+{% macro alerta_erro(msg) %}
+{% if msg %}
+<div class="alert-app error" role="alert">
+  <i class="bi bi-exclamation-circle-fill fs-5"></i>
+  <span>{{ msg }}</span>
+</div>
+{% endif %}
+{% endmacro %}
+
+{% macro alerta_sucesso(msg) %}
+{% if msg %}
+<div class="alert-app success" role="alert">
+  <i class="bi bi-check-circle-fill fs-5"></i>
+  <span>{{ msg }}</span>
+</div>
+{% endif %}
+{% endmacro %}

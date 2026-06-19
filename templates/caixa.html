@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Caixa — Festejo{% endblock %}
+{% block topbar_title %}Caixa{% endblock %}
+
+{% block content %}
+<section class="page-banner">
+  <div class="page-banner__main">
+    <p class="page-eyebrow mb-2">Barracas e pagamentos</p>
+    <h1 class="page-banner__title"><i class="bi bi-wallet2 text-success"></i> Caixa do festejo</h1>
+    <p class="muted mb-0">Lançamentos diários, importação de PDF, consolidação e sangrias.</p>
+  </div>
+  <div class="page-banner__actions">
+    <a href="/" class="btn"><i class="bi bi-grid-1x2"></i> Painel</a>
+  </div>
+</section>
+
+<div class="kpi-strip kpi-strip--4">
+  {{ ui.kpi_card('Total caixa (s/ leilão)', totais.total_caixa_sem_leilao|money, 'bi-cash-stack', 'green', true) }}
+  {{ ui.kpi_card('Total vendas PDF', totais.total_vendas_pdf|money, 'bi-file-pdf', 'blue') }}
+  {{ ui.kpi_card('Sangrias', totais.sangrias|money, 'bi-cash-coin', 'danger') }}
+  {{ ui.kpi_card('Dias lançados', totais.dias_count, 'bi-calendar3', 'neutral') }}
+</div>
+
+<section class="card">
+  <h2><i class="bi bi-pie-chart"></i> Totais por forma de pagamento</h2>
+  <div class="kpi-strip kpi-strip--4">
+    {{ ui.kpi_card('Dinheiro (líq.)', totais.dinheiro|money, 'bi-cash', 'green') }}
+    {{ ui.kpi_card('Débito', totais.debito|money, 'bi-credit-card', 'blue') }}
+    {{ ui.kpi_card('Crédito', totais.credito|money, 'bi-credit-card-2-front', 'purple') }}
+    {{ ui.kpi_card('Pix', totais.pix|money, 'bi-qr-code', 'neutral') }}
+  </div>
+</section>
+
+<section class="card card--ranking">
+  <div class="card-header">
+    <h2 class="mb-0"><i class="bi bi-trophy-fill text-warning"></i> Campeões de vendas</h2>
+    <span class="badge">{{ ranking|length }} produto(s)</span>
+  </div>
+  <p class="muted help-note">Ranking consolidado dos PDFs de vendas importados no caixa (seção vendas).</p>
+
+  {% if ranking %}
+  {% set campeao = ranking[0] %}
+  {% set segundo = ranking[1] if ranking|length > 1 else none %}
+  {% set terceiro = ranking[2] if ranking|length > 2 else none %}
+
+  <div class="champion-hero">
+    <div class="champion-hero__glow"></div>
+    <div class="champion-hero__icon"><i class="bi bi-trophy-fill"></i></div>
+    <div class="champion-hero__content">
+      <span class="champion-hero__label">Campeão de vendas</span>
+      <h3 class="champion-hero__name">{{ campeao.produto }}</h3>
+      <div class="champion-hero__stats">
+        <span><strong>{{ campeao.quantidade }}</strong> unidades</span>
+        <span><strong>{{ campeao.total|money }}</strong> em vendas</span>
+        {% if campeao.codigo %}<span>Cód. {{ campeao.codigo }}</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if ranking|length >= 2 %}
+  <div class="podium" aria-label="Pódio top 3 vendas">
+    <div class="podium-slot podium-slot--2">
+      {% if segundo %}
+      <div class="podium-slot__head">
+        <span class="podium-medal podium-medal--silver"><i class="bi bi-2-circle-fill"></i></span>
+        <p class="podium-slot__name" title="{{ segundo.produto }}">{{ segundo.produto }}</p>
+        <p class="podium-slot__meta">{{ segundo.quantidade }} un. · {{ segundo.total|money }}</p>
+      </div>
+      <div class="podium-bar podium-bar--2" style="--delay: 0.15s"><span>2º</span></div>
+      {% else %}
+      <div class="podium-bar podium-bar--empty"></div>
+      {% endif %}
+    </div>
+
+    <div class="podium-slot podium-slot--1">
+      <div class="podium-slot__head">
+        <span class="podium-medal podium-medal--gold"><i class="bi bi-trophy-fill"></i></span>
+        <p class="podium-slot__name" title="{{ campeao.produto }}">{{ campeao.produto }}</p>
+        <p class="podium-slot__meta">{{ campeao.quantidade }} un. · {{ campeao.total|money }}</p>
+      </div>
+      <div class="podium-bar podium-bar--1" style="--delay: 0.05s"><span>1º</span></div>
+    </div>
+
+    <div class="podium-slot podium-slot--3">
+      {% if terceiro %}
+      <div class="podium-slot__head">
+        <span class="podium-medal podium-medal--bronze"><i class="bi bi-3-circle-fill"></i></span>
+        <p class="podium-slot__name" title="{{ terceiro.produto }}">{{ terceiro.produto }}</p>
+        <p class="podium-slot__meta">{{ terceiro.quantidade }} un. · {{ terceiro.total|money }}</p>
+      </div>
+      <div class="podium-bar podium-bar--3" style="--delay: 0.3s"><span>3º</span></div>
+      {% else %}
+      <div class="podium-bar podium-bar--empty"></div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <h3 class="ranking-list-title"><i class="bi bi-list-ol"></i> Classificação completa</h3>
+  <div class="table-wrap table-wrap--flush">
+    <table class="table-hover ranking-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Produto</th>
+          <th>Cód.</th>
+          <th>Quantidade</th>
+          <th>Total vendido</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in ranking %}
+        <tr class="{% if item.posicao == 1 %}ranking-row--gold{% elif item.posicao == 2 %}ranking-row--silver{% elif item.posicao == 3 %}ranking-row--bronze{% endif %}">
+          <td>
+            {% if item.posicao == 1 %}
+              <span class="rank-badge rank-badge--gold"><i class="bi bi-trophy-fill"></i> {{ item.posicao }}º</span>
+            {% elif item.posicao == 2 %}
+              <span class="rank-badge rank-badge--silver">{{ item.posicao }}º</span>
+            {% elif item.posicao == 3 %}
+              <span class="rank-badge rank-badge--bronze">{{ item.posicao }}º</span>
+            {% else %}
+              <span class="rank-badge">{{ item.posicao }}º</span>
+            {% endif %}
+          </td>
+          <td><strong>{{ item.produto }}</strong></td>
+          <td>{{ item.codigo or '—' }}</td>
+          <td>{{ item.quantidade }}</td>
+          <td>{{ item.total|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-trophy"></i>
+    <p>Importe os PDFs de vendas nos dias do caixa para montar o ranking de produtos.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card card--table">
+  <div class="card-header">
+    <h2 class="mb-0"><i class="bi bi-calendar3"></i> Caixa por dia</h2>
+    <span class="badge">{{ dias|length }} dia(s)</span>
+  </div>
+  {% if dias %}
+  <div class="table-wrap table-wrap--flush">
+    <table class="table-hover">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Dia</th>
+          <th>Dinheiro</th>
+          <th>Débito</th>
+          <th>Crédito</th>
+          <th>Pix</th>
+          <th>Total caixa</th>
+          <th>PDF</th>
+          <th>Diferença</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in dias %}
+        <tr>
+          <td>{{ item.dia.data|datebr }}</td>
+          <td>{{ item.dia.rotulo or ('Dia ' ~ item.dia.numero_dia if item.dia.numero_dia else '—') }}</td>
+          <td>{{ item.consolidacao.dinheiro|money }}</td>
+          <td>{{ item.consolidacao.debito|money }}</td>
+          <td>{{ item.consolidacao.credito|money }}</td>
+          <td>{{ item.consolidacao.pix|money }}</td>
+          <td><strong>{{ item.consolidacao.total_caixa_sem_leilao|money }}</strong></td>
+          <td>
+            {% if item.dia.relatorio_pdf %}
+              {{ item.consolidacao.pdf_total_vendas|money }}
+            {% else %}
+              <span class="tag warn">Sem PDF</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if item.consolidacao.diferenca_pagamentos is not none %}
+              <span class="{% if item.consolidacao.diferenca_pagamentos|abs > 1 %}tag bad{% else %}tag ok{% endif %}">
+                {{ item.consolidacao.diferenca_pagamentos|money }}
+              </span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            <a class="btn small primary" href="/caixa/dias/{{ item.dia.id }}">
+              <i class="bi bi-pencil-square"></i> Lançar
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-wallet2"></i>
+    <p>Nenhum dia cadastrado. Crie um dia no <a href="/">Painel</a> para começar os lançamentos.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2><i class="bi bi-lightning"></i> Atalhos</h2>
+  <ul class="day-links">
+    {% for item in dias %}
+    <li>
+      <a href="/caixa/dias/{{ item.dia.id }}">
+        <i class="bi bi-box-arrow-in-right"></i>
+        {{ item.dia.data|datebr }} — {{ item.dia.rotulo or 'Abrir caixa do dia' }}
+      </a>
+    </li>
+    {% else %}
+    <li class="muted">Cadastre dias no Painel principal.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

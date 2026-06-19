@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Caixa {{ dia.data|datebr }} — Festejo{% endblock %}
+{% block topbar_title %}Caixa · {{ dia.data|datebr }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header__intro">
+    <a href="/caixa" class="back-link"><i class="bi bi-arrow-left"></i> Voltar ao caixa</a>
+    <p class="page-eyebrow">Lançamento do dia</p>
+    <h1>{{ dia.rotulo or ('Dia ' ~ dia.numero_dia if dia.numero_dia else dia.data|datebr) }}</h1>
+    <p class="muted mb-0">{{ dia.data|datebr }}</p>
+  </div>
+</div>
+
+<div class="kpi-strip kpi-strip--3">
+  {{ ui.kpi_card('Total caixa', consolidacao.total_caixa_sem_leilao|money, 'bi-wallet2', 'green', true) }}
+  {{ ui.kpi_card('Vendas PDF', consolidacao.pdf_total_vendas|money if dia.relatorio_pdf else '—', 'bi-file-pdf', 'blue') }}
+  {{ ui.kpi_card('Sangrias', consolidacao.sangrias_total|money, 'bi-cash-coin', 'danger') }}
+</div>
+
+<nav class="section-nav mb-4" aria-label="Seções do caixa">
+  <a href="#pdf"><i class="bi bi-file-pdf"></i> PDF</a>
+  <a href="#consolidacao"><i class="bi bi-check2-square"></i> Consolidação</a>
+  <a href="#caixa"><i class="bi bi-wallet2"></i> Lançamento</a>
+  <a href="#sangrias"><i class="bi bi-cash-coin"></i> Sangrias</a>
+</nav>
+
+<section class="card" id="pdf">
+  <h2><i class="bi bi-file-pdf"></i> Importar PDF do caixa</h2>
+  <p class="muted">Relatório de Vendas — formas de pagamento e produtos.</p>
+  <form method="post" action="/dias/{{ dia.id }}/pdf" enctype="multipart/form-data" class="form-inline">
+    <input type="file" name="arquivo" accept=".pdf" required class="form-control">
+    <button type="submit" class="btn primary"><i class="bi bi-upload"></i> Importar PDF</button>
+  </form>
+
+  {% if dia.relatorio_pdf %}
+  <div class="kpi-strip kpi-strip--4">
+    {{ ui.kpi_card('Dinheiro', dia.relatorio_pdf.dinheiro|money, 'bi-cash', 'green') }}
+    {{ ui.kpi_card('Débito', dia.relatorio_pdf.debito|money, 'bi-credit-card', 'blue') }}
+    {{ ui.kpi_card('Crédito', dia.relatorio_pdf.credito|money, 'bi-credit-card-2-front', 'purple') }}
+    {{ ui.kpi_card('Pix', dia.relatorio_pdf.pix|money, 'bi-qr-code', 'neutral') }}
+    {{ ui.kpi_card('Total vendas', dia.relatorio_pdf.total_vendas|money, 'bi-cart-check', 'green', true) }}
+  </div>
+  {% if dia.relatorio_pdf.produtos %}
+  <details class="details-block">
+    <summary>Ver produtos ({{ dia.relatorio_pdf.produtos|length }})</summary>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Seção</th><th>Cód.</th><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead>
+        <tbody>
+          {% for p in dia.relatorio_pdf.produtos %}
+          <tr>
+            <td>{{ p.secao }}</td><td>{{ p.codigo }}</td><td>{{ p.produto }}</td>
+            <td>{{ p.quantidade }}</td><td>{{ p.valor_unitario|money }}</td><td>{{ p.total|money }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+  {% endif %}
+</section>
+
+<section class="card" id="consolidacao">
+  <div class="card-header">
+    <h2 class="mb-0"><i class="bi bi-arrow-left-right"></i> Consolidação</h2>
+    {% if dia.relatorio_pdf and not dia.relatorio_pdf.eh_acumulado %}
+    <form method="post" action="/dias/{{ dia.id }}/pdf/sincronizar">
+      <button type="submit" class="btn small"><i class="bi bi-arrow-repeat"></i> Aplicar PDF ao caixa</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if dia.relatorio_pdf and dia.relatorio_pdf.eh_acumulado %}
+  <p class="tag warn">PDF acumulado — use apenas como referência.</p>
+  {% endif %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Forma</th><th>Caixa</th><th>PDF</th><th>Diferença</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Dinheiro (líq.)</td>
+          <td>{{ consolidacao.dinheiro|money }}</td>
+          <td>{{ consolidacao.pdf_dinheiro|money if dia.relatorio_pdf else '—' }}</td>
+          <td>{% if consolidacao.diferenca_dinheiro is not none %}<span class="{% if consolidacao.diferenca_dinheiro|abs > 1 %}tag bad{% else %}tag ok{% endif %}">{{ consolidacao.diferenca_dinheiro|money }}</span>{% else %}—{% endif %}</td>
+        </tr>
+        <tr>
+          <td>Débito</td><td>{{ consolidacao.debito|money }}</td>
+          <td>{{ consolidacao.pdf_debito|money if dia.relatorio_pdf else '—' }}</td>
+          <td>{% if consolidacao.diferenca_debito is not none %}<span class="{% if consolidacao.diferenca_debito|abs > 1 %}tag bad{% else %}tag ok{% endif %}">{{ consolidacao.diferenca_debito|money }}</span>{% else %}—{% endif %}</td>
+        </tr>
+        <tr>
+          <td>Crédito</td><td>{{ consolidacao.credito|money }}</td>
+          <td>{{ consolidacao.pdf_credito|money if dia.relatorio_pdf else '—' }}</td>
+          <td>{% if consolidacao.diferenca_credito is not none %}<span class="{% if consolidacao.diferenca_credito|abs > 1 %}tag bad{% else %}tag ok{% endif %}">{{ consolidacao.diferenca_credito|money }}</span>{% else %}—{% endif %}</td>
+        </tr>
+        <tr>
+          <td>Pix</td><td>{{ consolidacao.pix|money }}</td>
+          <td>{{ consolidacao.pdf_pix|money if dia.relatorio_pdf else '—' }}</td>
+          <td>{% if consolidacao.diferenca_pix is not none %}<span class="{% if consolidacao.diferenca_pix|abs > 1 %}tag bad{% else %}tag ok{% endif %}">{{ consolidacao.diferenca_pix|money }}</span>{% else %}—{% endif %}</td>
+        </tr>
+        <tr class="highlight-row">
+          <td><strong>Total (sem leilão)</strong></td>
+          <td><strong>{{ consolidacao.total_caixa_sem_leilao|money }}</strong></td>
+          <td><strong>{{ consolidacao.pdf_total_pagamentos|money if dia.relatorio_pdf else '—' }}</strong></td>
+          <td>{% if consolidacao.diferenca_pagamentos is not none %}<span class="{% if consolidacao.diferenca_pagamentos|abs > 1 %}tag bad{% else %}tag ok{% endif %}"><strong>{{ consolidacao.diferenca_pagamentos|money }}</strong></span>{% else %}—{% endif %}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% set caixa = dia.caixa %}
+{% set calc = consolidacao.caixa %}
+<section class="card caixa-card" id="caixa">
+  <h2><i class="bi bi-wallet2"></i> Lançamento do caixa</h2>
+  <p class="muted">Informe os valores recebidos ou deixe o PDF preencher automaticamente.</p>
+  {% if caixa %}
+  <form method="post" action="/dias/{{ dia.id }}/caixa/salvar">
+    <div class="form-grid form-grid--wide">
+      <label>Dinheiro<input type="number" step="0.01" name="dinheiro" value="{{ caixa.dinheiro }}" class="form-control"></label>
+      <label>Cartão débito<input type="number" step="0.01" name="debito" value="{{ caixa.debito }}" class="form-control"></label>
+      <label>Cartão crédito<input type="number" step="0.01" name="credito" value="{{ caixa.credito }}" class="form-control"></label>
+      <label>Pix<input type="number" step="0.01" name="pix" value="{{ caixa.pix }}" class="form-control"></label>
+      <label>Troco<input type="number" step="0.01" name="troco" value="{{ caixa.troco }}" class="form-control"></label>
+      <label>Leilão pago aqui <small class="muted">(fora do total)</small>
+        <input type="number" step="0.01" name="leilao_pago_caixa" value="{{ caixa.leilao_pago_caixa }}" class="form-control">
+      </label>
+    </div>
+    <div class="caixa-totais">
+      <div>Total recebido: <strong>{{ calc.total_recebimentos|money }}</strong></div>
+      <div>Caixa sem leilão: <strong class="ok">{{ calc.total_caixa_sem_leilao|money }}</strong></div>
+    </div>
+    <button type="submit" class="btn primary"><i class="bi bi-check-lg"></i> Salvar caixa</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="card" id="sangrias">
+  <h2><i class="bi bi-cash-coin"></i> Sangrias</h2>
+  <form method="post" action="/dias/{{ dia.id }}/sangria" class="form-inline">
+    <input type="text" name="destino" placeholder="Destino" required class="form-control">
+    <input type="number" step="0.01" name="valor" placeholder="Valor" required class="form-control">
+    <button type="submit" class="btn primary"><i class="bi bi-plus-lg"></i> Registrar</button>
+  </form>
+  {% if dia.sangrias %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Destino</th><th>Valor</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for s in dia.sangrias %}
+        <tr>
+          <td>{{ s.destino }}</td>
+          <td>{{ s.valor|money }}</td>
+          <td class="actions-cell">
+            <details class="edit-details">
+              <summary class="btn small"><i class="bi bi-pencil"></i> Editar</summary>
+              <div class="edit-panel">
+                <form method="post" action="/sangrias/{{ s.id }}/editar" class="form-inline">
+                  <input type="text" name="destino" value="{{ s.destino }}" required>
+                  <input type="number" step="0.01" name="valor" value="{{ s.valor }}" required>
+                  <button type="submit" class="btn small primary">Salvar</button>
+                </form>
+              </div>
+            </details>
+            {{ ui.btn_excluir('/sangrias/' ~ s.id ~ '/excluir') }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

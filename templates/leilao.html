@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Leilão — Festejo{% endblock %}
+{% block topbar_title %}Leilão{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header__intro">
+    <p class="page-eyebrow">Arrecadação separada</p>
+    <h1><i class="bi bi-hammer"></i> Leilão</h1>
+    <p class="muted mb-0">Controle separado do caixa — arrecadação diária de itens leiloados</p>
+  </div>
+</div>
+
+<div class="kpi-strip kpi-strip--3">
+  {{ ui.kpi_card('Entradas', totais.entradas|money, 'bi-arrow-down-circle', 'green') }}
+  {{ ui.kpi_card('Saídas', totais.saidas|money, 'bi-arrow-up-circle', 'danger') }}
+  {{ ui.kpi_card('Líquido', totais.liquido|money, 'bi-graph-up-arrow', 'gold', true) }}
+</div>
+
+<section class="card">
+  <h2><i class="bi bi-list-ul text-success"></i> Lançamentos por dia</h2>
+  <p class="muted help-note">Para lançar movimentos, abra o dia correspondente no painel.</p>
+  {% if movimentos %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for m in movimentos %}
+        <tr>
+          <td>{{ m.dia.data|datebr }}</td>
+          <td><span class="tag {{ 'ok' if m.tipo == 'entrada' else 'bad' }}">{{ m.tipo }}</span></td>
+          <td>{{ m.descricao }}</td>
+          <td><strong>{{ m.valor|money }}</strong></td>
+          <td class="actions-cell">
+            <details class="edit-details">
+              <summary class="btn small"><i class="bi bi-pencil"></i> Editar</summary>
+              <div class="edit-panel">
+                <form method="post" action="/leilao/{{ m.id }}/editar" class="form-inline">
+                  <input type="hidden" name="voltar" value="leilao">
+                  <select name="tipo" required>
+                    <option value="entrada" {% if m.tipo == 'entrada' %}selected{% endif %}>Entrada</option>
+                    <option value="saida" {% if m.tipo == 'saida' %}selected{% endif %}>Saída</option>
+                  </select>
+                  <input type="text" name="descricao" value="{{ m.descricao }}" required>
+                  <input type="number" step="0.01" name="valor" value="{{ m.valor }}" required>
+                  <button type="submit" class="btn small primary">Salvar</button>
+                </form>
+              </div>
+            </details>
+            <form method="post" action="/leilao/{{ m.id }}/excluir" class="inline-form d-inline">
+              <input type="hidden" name="voltar" value="leilao">
+              <button type="submit" class="btn btn-sm danger" onclick="return confirm('Excluir este lançamento?')">
+                <i class="bi bi-trash3"></i> Excluir
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-inbox"></i>
+    <p>Nenhum lançamento de leilão ainda.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2><i class="bi bi-calendar3 text-success"></i> Dias disponíveis</h2>
+  <ul class="day-links">
+    {% for dia in dias %}
+    <li><a href="/leilao/dias/{{ dia.id }}"><i class="bi bi-box-arrow-in-right"></i> {{ dia.data|datebr }} — {{ dia.rotulo or 'Lançar leilão' }}</a></li>
+    {% else %}
+    <li class="muted">Cadastre dias no painel principal.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

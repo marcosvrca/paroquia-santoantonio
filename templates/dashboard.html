@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Painel — Festejo Financeiro{% endblock %}
+{% block topbar_title %}Painel{% endblock %}
+
+{% block content %}
+<section class="page-banner">
+  <div class="page-banner__main">
+    <p class="page-eyebrow mb-2">Visão geral · {{ festejo.ano }}</p>
+    <h1 class="page-banner__title">{{ festejo.nome }}</h1>
+    <p class="muted mb-0">Resumo financeiro do festejo. Lançamentos detalhados ficam em cada módulo.</p>
+  </div>
+  <div class="page-banner__actions">
+    <a href="/relatorio" class="btn primary"><i class="bi bi-file-earmark-bar-graph"></i> Relatório final</a>
+    <a href="/infografico" class="btn"><i class="bi bi-image"></i> Infográfico</a>
+  </div>
+</section>
+
+<div class="kpi-strip kpi-strip--4">
+  {{ ui.kpi_card('Caixa (sem leilão)', relatorio.receita_caixa|money, 'bi-cash-stack', 'green') }}
+  {{ ui.kpi_card('Rifa líquida', relatorio.receita_rifa|money, 'bi-ticket-perforated', 'blue') }}
+  {{ ui.kpi_card('Leilão líquido', relatorio.receita_leilao|money, 'bi-hammer', 'purple') }}
+  {{ ui.kpi_card('Lucro líquido', relatorio.lucro_liquido|money, 'bi-trophy', 'gold', true) }}
+</div>
+
+<section class="card">
+  <h2><i class="bi bi-grid"></i> Módulos</h2>
+  <div class="module-grid">
+    <a href="/caixa" class="module-card module-card--green">
+      <i class="bi bi-wallet2"></i>
+      <span>Caixa</span>
+      <small>Barracas, PDF, sangrias</small>
+    </a>
+    <a href="/rifa" class="module-card module-card--blue">
+      <i class="bi bi-ticket-perforated"></i>
+      <span>Rifa</span>
+      <small>Doações, vendas, incentivo</small>
+    </a>
+    <a href="/leilao" class="module-card module-card--purple">
+      <i class="bi bi-hammer"></i>
+      <span>Leilão</span>
+      <small>Arrecadação diária</small>
+    </a>
+    <a href="/despesas" class="module-card module-card--danger">
+      <i class="bi bi-receipt"></i>
+      <span>Despesas</span>
+      <small>Notas fiscais e NF</small>
+    </a>
+  </div>
+</section>
+
+<div class="grid-setup">
+  <section class="card">
+    <h2><i class="bi bi-gear"></i> Configurar festejo</h2>
+    <form method="post" action="/festejo/config" class="form-grid form-grid--wide">
+      <label>Nome<input type="text" name="nome" value="{{ festejo.nome }}" required class="form-control"></label>
+      <label>Ano<input type="number" name="ano" value="{{ festejo.ano }}" required class="form-control"></label>
+      <label>Início<input type="date" name="data_inicio" value="{{ festejo.data_inicio }}" class="form-control"></label>
+      <label>Fim<input type="date" name="data_fim" value="{{ festejo.data_fim }}" class="form-control"></label>
+      <div class="form-actions"><button type="submit" class="btn primary"><i class="bi bi-check-lg"></i> Salvar</button></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2><i class="bi bi-calendar-plus"></i> Novo dia do festejo</h2>
+    <p class="muted help-note">Após criar, os lançamentos de caixa ficam em <a href="/caixa">Caixa</a>.</p>
+    <form method="post" action="/dias/novo" class="form-grid form-grid--wide">
+      <label>Data<input type="date" name="data" required class="form-control"></label>
+      <label>Nº dia<input type="number" name="numero_dia" min="1" placeholder="Ex: 1" class="form-control"></label>
+      <label>Rótulo<input type="text" name="rotulo" placeholder="Ex: DIA 01 - Dom" class="form-control"></label>
+      <div class="form-actions"><button type="submit" class="btn primary"><i class="bi bi-plus-lg"></i> Criar dia</button></div>
+    </form>
+  </section>
+</div>
+
+<section class="grid-dashboard">
+  <div class="card card--chart">
+    <h2><i class="bi bi-pie-chart"></i> Receitas do festejo</h2>
+    <div class="chart-wrap">
+      <canvas id="chartReceitas" height="260"></canvas>
+    </div>
+  </div>
+  <div class="card card--summary">
+    <h2><i class="bi bi-calculator"></i> Resumo financeiro</h2>
+    <ul class="summary-list summary-list--kpi">
+      <li><span>Total receitas</span><strong>{{ relatorio.total_receitas|money }}</strong></li>
+      <li><span>Total despesas</span><strong>{{ relatorio.total_despesas|money }}</strong></li>
+      <li><span>Ganho líquido</span><strong>{{ relatorio.ganho_liquido|money }}</strong></li>
+      <li><span>15% Cúria</span><strong>{{ relatorio.curia_15|money }}</strong></li>
+      <li class="highlight gold"><span>Lucro líquido</span><strong>{{ relatorio.lucro_liquido|money }}</strong></li>
+    </ul>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
+Chart.defaults.color = '#64748b';
+new Chart(document.getElementById('chartReceitas'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Caixa', 'Rifa', 'Leilão', 'Outras'],
+    datasets: [{
+      data: [{{ relatorio.receita_caixa }}, {{ relatorio.receita_rifa }}, {{ relatorio.receita_leilao }}, {{ relatorio.receita_outras }}],
+      backgroundColor: ['#0f4d38', '#2563eb', '#7c3aed', '#d97706'],
+      borderWidth: 3,
+      borderColor: '#ffffff',
+      hoverOffset: 10,
+      spacing: 2
+    }]
+  },
+  options: {
+    cutout: '68%',
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { padding: 20, usePointStyle: true, pointStyle: 'circle', font: { weight: '600', size: 12 } }
+      }
+    }
+  }
+});
+</script>
+{% endblock %}

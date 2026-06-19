@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Relatório Final — Festejo{% endblock %}
+{% block topbar_title %}Relatório Final{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header__intro">
+    <p class="page-eyebrow">Fechamento</p>
+    <h1><i class="bi bi-graph-up-arrow"></i> Relatório Final</h1>
+    <p class="muted mb-0">{{ festejo.nome }} — {{ festejo.ano }}</p>
+  </div>
+  <div class="infografico-toolbar__actions no-print">
+    <a href="/infografico" class="btn"><i class="bi bi-image"></i> Ver infográfico</a>
+  </div>
+</div>
+
+<div class="kpi-strip kpi-strip--4">
+  {{ ui.kpi_card('Total receitas', total_receitas|money, 'bi-arrow-down-circle', 'green') }}
+  {{ ui.kpi_card('Total despesas', total_despesas|money, 'bi-arrow-up-circle', 'danger') }}
+  {{ ui.kpi_card('Ganho líquido', ganho_liquido|money, 'bi-graph-up', 'blue') }}
+  {{ ui.kpi_card('Lucro líquido', lucro_liquido|money, 'bi-trophy', 'gold', true) }}
+</div>
+
+<section class="grid-content grid-content--wide-left">
+  <div class="card">
+    <h2><i class="bi bi-arrow-down-circle text-success"></i> Receitas automáticas</h2>
+    <ul class="summary-list">
+      <li><span>Caixa (sem leilão)</span><strong>{{ receita_caixa|money }}</strong></li>
+      <li><span>Rifa líquida</span><strong>{{ receita_rifa|money }}</strong></li>
+      <li><span>Leilão líquido</span><strong>{{ receita_leilao|money }}</strong></li>
+      <li><span>Outras receitas</span><strong>{{ receita_outras|money }}</strong></li>
+      <li class="highlight"><span>Total receitas</span><strong>{{ total_receitas|money }}</strong></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h2><i class="bi bi-piggy-bank text-success"></i> Resultado</h2>
+    <ul class="summary-list">
+      <li><span>Total despesas</span><strong>{{ total_despesas|money }}</strong></li>
+      <li><span>Ganho líquido</span><strong>{{ ganho_liquido|money }}</strong></li>
+      <li><span>15% Cúria</span><strong>{{ curia_15|money }}</strong></li>
+      <li class="highlight gold"><span>Lucro líquido</span><strong>{{ lucro_liquido|money }}</strong></li>
+    </ul>
+  </div>
+</section>
+
+<section class="grid-charts">
+  <div class="card card--chart">
+    <h2><i class="bi bi-bar-chart-line"></i> Resultado consolidado</h2>
+    <div class="chart-wrap">
+      <canvas id="chartResultado" height="280"></canvas>
+    </div>
+  </div>
+  <div class="card card--chart">
+    <h2><i class="bi bi-pie-chart"></i> Composição das receitas</h2>
+    <div class="chart-wrap">
+      <canvas id="chartReceitasDet" height="280"></canvas>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2><i class="bi bi-plus-circle text-success"></i> Lançar receita ou despesa manual</h2>
+  <form method="post" action="/relatorio/lancamento" class="form-inline">
+    <select name="tipo" required class="form-control" style="max-width:140px">
+      <option value="receita">Receita</option>
+      <option value="despesa">Despesa</option>
+    </select>
+    <input type="text" name="categoria" placeholder="Categoria" required class="form-control">
+    <input type="text" name="descricao" placeholder="Descrição" class="form-control">
+    <input type="number" step="0.01" name="valor" placeholder="Valor" required class="form-control" style="max-width:120px">
+    <button type="submit" class="btn primary"><i class="bi bi-check-lg"></i> Adicionar</button>
+  </form>
+</section>
+
+<section class="grid-content">
+  <div class="card">
+    <h2><i class="bi bi-box-arrow-in-down text-success"></i> Receitas manuais</h2>
+    {% if receitas_manuais %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Categoria</th><th>Descrição</th><th>Valor</th><th>Ações</th></tr></thead>
+        <tbody>
+          {% for r in receitas_manuais %}
+          <tr>
+            <td>{{ r.categoria }}</td>
+            <td>{{ r.descricao }}</td>
+            <td>{{ r.valor|money }}</td>
+            <td class="actions-cell">
+              <details class="edit-details">
+                <summary class="btn small"><i class="bi bi-pencil"></i> Editar</summary>
+                <div class="edit-panel">
+                  <form method="post" action="/relatorio/lancamento/{{ r.id }}/editar" class="form-inline">
+                    <input type="hidden" name="tipo" value="receita">
+                    <input type="text" name="categoria" value="{{ r.categoria }}" required>
+                    <input type="text" name="descricao" value="{{ r.descricao }}">
+                    <input type="text" name="valor" value="{{ '%.2f'|format(r.valor)|replace('.', ',') }}" required>
+                    <button type="submit" class="btn small primary">Salvar</button>
+                  </form>
+                </div>
+              </details>
+              {{ ui.btn_excluir('/relatorio/lancamento/' ~ r.id ~ '/excluir') }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted mb-0">Nenhuma receita manual (patrocínios, etc.).</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2><i class="bi bi-box-arrow-up text-danger"></i> Despesas</h2>
+    {% if despesas %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Categoria</th><th>Descrição</th><th>Valor</th><th>Ações</th></tr></thead>
+        <tbody>
+          {% for d in despesas %}
+          <tr>
+            <td>{{ d.categoria }}</td>
+            <td>{{ d.descricao }}{% if d.nota_fiscal %} <span class="tag warn">NF</span>{% endif %}</td>
+            <td>{{ d.valor|money }}</td>
+            <td class="actions-cell">
+              {% if d.nota_fiscal %}
+              <a href="/despesas" class="btn small"><i class="bi bi-receipt"></i> Despesas</a>
+              {% else %}
+              <details class="edit-details">
+                <summary class="btn small"><i class="bi bi-pencil"></i> Editar</summary>
+                <div class="edit-panel">
+                  <form method="post" action="/relatorio/lancamento/{{ d.id }}/editar" class="form-inline">
+                    <input type="hidden" name="tipo" value="despesa">
+                    <input type="text" name="categoria" value="{{ d.categoria }}" required>
+                    <input type="text" name="descricao" value="{{ d.descricao }}">
+                    <input type="text" name="valor" value="{{ '%.2f'|format(d.valor)|replace('.', ',') }}" required>
+                    <button type="submit" class="btn small primary">Salvar</button>
+                  </form>
+                </div>
+              </details>
+              {{ ui.btn_excluir('/relatorio/lancamento/' ~ d.id ~ '/excluir') }}
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted mb-0">Nenhuma despesa lançada.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card card--export no-print">
+  <h2><i class="bi bi-file-earmark-spreadsheet text-success"></i> Exportar relatório em CSV</h2>
+  <p class="muted help-note mb-3">Baixe os dados tratados do festejo. Marque as seções desejadas ou exporte tudo de uma vez. O arquivo usa separador <code>;</code> e abre direto no Excel.</p>
+
+  <form method="get" action="/relatorio/exportar-csv" class="export-csv-form" id="formExportCsv">
+    <label class="export-csv-option export-csv-option--all">
+      <input type="checkbox" name="secoes" value="tudo" id="csvTudo" checked>
+      <span><strong>Exportar tudo</strong> — todas as seções abaixo</span>
+    </label>
+
+    <div class="export-csv-grid" id="csvSecoesGrid">
+      {% for key, label in secoes_csv.items() %}
+      <label class="export-csv-option">
+        <input type="checkbox" name="secoes" value="{{ key }}" class="csv-secao" checked disabled>
+        <span>{{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn primary"><i class="bi bi-download"></i> Baixar CSV</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const tudo = document.getElementById('csvTudo');
+  const secoes = document.querySelectorAll('.csv-secao');
+  if (!tudo || !secoes.length) return;
+
+  function syncSecoes() {
+    const all = tudo.checked;
+    secoes.forEach((cb) => {
+      cb.disabled = all;
+      if (all) cb.checked = true;
+    });
+  }
+
+  tudo.addEventListener('change', syncSecoes);
+  syncSecoes();
+
+  document.getElementById('formExportCsv').addEventListener('submit', (e) => {
+    if (!tudo.checked && !Array.from(secoes).some((cb) => cb.checked)) {
+      e.preventDefault();
+      alert('Selecione ao menos uma seção para exportar.');
+    }
+  });
+})();
+</script>
+<script>
+Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
+Chart.defaults.color = '#64748b';
+Chart.defaults.plugins.tooltip.backgroundColor = '#0f172a';
+Chart.defaults.plugins.tooltip.padding = 12;
+Chart.defaults.plugins.tooltip.cornerRadius = 8;
+new Chart(document.getElementById('chartResultado'), {
+  type: 'bar',
+  data: {
+    labels: ['Receitas', 'Despesas', 'Ganho', '15% Cúria', 'Lucro'],
+    datasets: [{
+      data: [{{ total_receitas }}, {{ total_despesas }}, {{ ganho_liquido }}, {{ curia_15 }}, {{ lucro_liquido }}],
+      backgroundColor: ['#0f4d38', '#dc2626', '#2563eb', '#7c3aed', '#d97706'],
+      borderRadius: 10,
+      borderSkipped: false,
+      maxBarThickness: 48
+    }]
+  },
+  options: {
+    plugins: { legend: { display: false } },
+    maintainAspectRatio: false,
+    scales: {
+      x: { grid: { display: false }, border: { display: false } },
+      y: { beginAtZero: true, grid: { color: '#f1f5f9' }, border: { display: false } }
+    }
+  }
+});
+new Chart(document.getElementById('chartReceitasDet'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Caixa', 'Rifa', 'Leilão', 'Outras'],
+    datasets: [{
+      data: [{{ receita_caixa }}, {{ receita_rifa }}, {{ receita_leilao }}, {{ receita_outras }}],
+      backgroundColor: ['#0f4d38', '#2563eb', '#7c3aed', '#d97706'],
+      borderWidth: 3,
+      borderColor: '#ffffff',
+      hoverOffset: 10,
+      spacing: 2
+    }]
+  },
+  options: {
+    cutout: '62%',
+    maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16, font: { weight: '600' } } } }
+  }
+});
+</script>
+{% endblock %}

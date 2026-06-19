@@ -1,0 +1,481 @@
+{% extends "base.html" %}
+{% block title %}Infográfico — {{ festejo.nome }}{% endblock %}
+{% block topbar_title %}Infográfico{% endblock %}
+
+{% block content %}
+<div class="infografico-toolbar no-print">
+  <div class="page-header">
+    <div class="page-header__intro">
+      <p class="page-eyebrow">Resumo visual</p>
+      <h1><i class="bi bi-image"></i> Infográfico do Festejo</h1>
+      <p class="muted mb-0">Panorama financeiro consolidado para compartilhar ou imprimir.</p>
+    </div>
+    <div class="infografico-toolbar__actions">
+      <button type="button" class="btn" id="btnPrint"><i class="bi bi-printer"></i> Imprimir</button>
+      <button type="button" class="btn primary" id="btnDownload"><i class="bi bi-download"></i> Baixar PNG</button>
+    </div>
+  </div>
+</div>
+
+<article class="infografico" id="infograficoCanvas">
+  <header class="infografico__hero">
+    <div class="infografico__hero-badge"><i class="bi bi-building-fill-check"></i> Festejo Financeiro</div>
+    <h1 class="infografico__title">{{ festejo.nome }}</h1>
+    <p class="infografico__subtitle">
+      Relatório consolidado · {{ festejo.ano }}
+      {% if festejo.data_inicio %} · {{ festejo.data_inicio|datebr }}{% if festejo.data_fim %} a {{ festejo.data_fim|datebr }}{% endif %}{% endif %}
+    </p>
+    <div class="infografico__hero-stats infografico__hero-stats--4">
+      <div class="infografico__hero-stat">
+        <span>{{ qtd_dias }}</span>
+        <small>Dias registrados</small>
+      </div>
+      <div class="infografico__hero-stat">
+        <span>{{ total_receitas|money }}</span>
+        <small>Total receitas</small>
+      </div>
+      <div class="infografico__hero-stat">
+        <span>{{ total_despesas|money }}</span>
+        <small>Total despesas</small>
+      </div>
+      <div class="infografico__hero-stat infografico__hero-stat--gold">
+        <span>{{ lucro_liquido|money }}</span>
+        <small>Lucro líquido · {{ '%.1f'|format(margem_lucro)|replace('.', ',') }}%</small>
+      </div>
+    </div>
+  </header>
+
+  <section class="infografico__kpis">
+    <div class="infografico__kpi infografico__kpi--green">
+      <i class="bi bi-cash-stack"></i>
+      <strong>{{ receita_caixa|money }}</strong>
+      <span>Caixa</span>
+      <em>{{ '%.1f'|format(pct_receita_caixa)|replace('.', ',') }}%</em>
+    </div>
+    <div class="infografico__kpi infografico__kpi--blue">
+      <i class="bi bi-ticket-perforated"></i>
+      <strong>{{ receita_rifa|money }}</strong>
+      <span>Rifa líquida</span>
+      <em>{{ '%.1f'|format(pct_receita_rifa)|replace('.', ',') }}%</em>
+    </div>
+    <div class="infografico__kpi infografico__kpi--purple">
+      <i class="bi bi-hammer"></i>
+      <strong>{{ receita_leilao|money }}</strong>
+      <span>Leilão líquido</span>
+      <em>{{ '%.1f'|format(pct_receita_leilao)|replace('.', ',') }}%</em>
+    </div>
+    <div class="infografico__kpi infografico__kpi--gold">
+      <i class="bi bi-plus-circle"></i>
+      <strong>{{ receita_outras|money }}</strong>
+      <span>Outras receitas</span>
+      <em>{{ '%.1f'|format(pct_receita_outras)|replace('.', ',') }}%</em>
+    </div>
+    <div class="infografico__kpi infografico__kpi--danger">
+      <i class="bi bi-receipt"></i>
+      <strong>{{ total_despesas|money }}</strong>
+      <span>Despesas</span>
+    </div>
+  </section>
+
+  <section class="infografico__flow">
+    <div class="infografico__flow-step">
+      <span class="infografico__flow-label">Receitas</span>
+      <strong>{{ total_receitas|money }}</strong>
+    </div>
+    <div class="infografico__flow-arrow"><i class="bi bi-dash-lg"></i><i class="bi bi-chevron-right"></i></div>
+    <div class="infografico__flow-step">
+      <span class="infografico__flow-label">Despesas</span>
+      <strong>{{ total_despesas|money }}</strong>
+    </div>
+    <div class="infografico__flow-arrow"><i class="bi bi-equals-lg"></i></div>
+    <div class="infografico__flow-step">
+      <span class="infografico__flow-label">Ganho líquido</span>
+      <strong>{{ ganho_liquido|money }}</strong>
+    </div>
+    <div class="infografico__flow-arrow"><i class="bi bi-dash-lg"></i><i class="bi bi-chevron-right"></i></div>
+    <div class="infografico__flow-step infografico__flow-step--muted">
+      <span class="infografico__flow-label">15% Cúria</span>
+      <strong>{{ curia_15|money }}</strong>
+    </div>
+    <div class="infografico__flow-arrow"><i class="bi bi-equals-lg"></i></div>
+    <div class="infografico__flow-step infografico__flow-step--highlight">
+      <span class="infografico__flow-label">Lucro líquido</span>
+      <strong>{{ lucro_liquido|money }}</strong>
+    </div>
+  </section>
+
+  <section class="infografico__charts infografico__charts--quad">
+    <div class="infografico__chart-card">
+      <h3><i class="bi bi-pie-chart"></i> Composição das receitas</h3>
+      <div class="infografico__chart-wrap infografico__chart-wrap--donut">
+        <canvas id="chartReceitasInf"></canvas>
+        <div class="infografico__chart-center" aria-hidden="true">
+          <strong>{{ total_receitas|money }}</strong>
+          <span>receitas</span>
+        </div>
+      </div>
+    </div>
+    <div class="infografico__chart-card">
+      <h3><i class="bi bi-credit-card"></i> Formas de pagamento</h3>
+      <div class="infografico__chart-wrap">
+        <canvas id="chartPagamentosInf"></canvas>
+      </div>
+    </div>
+    <div class="infografico__chart-card">
+      <h3><i class="bi bi-bar-chart-line"></i> Resultado financeiro</h3>
+      <div class="infografico__chart-wrap">
+        <canvas id="chartResultadoInf"></canvas>
+      </div>
+    </div>
+    <div class="infografico__chart-card">
+      <h3><i class="bi bi-receipt-cutoff"></i> Despesas por categoria</h3>
+      <div class="infografico__chart-wrap">
+        <canvas id="chartDespesasInf"></canvas>
+      </div>
+    </div>
+  </section>
+
+  {% if dias %}
+  <section class="infografico__chart-card infografico__chart-card--wide">
+    <h3><i class="bi bi-calendar3"></i> Evolução diária — caixa e leilão</h3>
+    <div class="infografico__chart-wrap infografico__chart-wrap--tall">
+      <canvas id="chartDiasInf"></canvas>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="infografico__ranking">
+    <div class="infografico__ranking-header">
+      <h2><i class="bi bi-trophy-fill"></i> Campeões de vendas</h2>
+      <span class="infografico__ranking-badge">{{ ranking_produtos|length }} produto(s)</span>
+    </div>
+    <p class="infografico__ranking-note">Ranking consolidado dos PDFs de vendas importados no caixa.</p>
+
+    {% if ranking_produtos %}
+    {% set campeao = ranking_produtos[0] %}
+    {% set segundo = ranking_produtos[1] if ranking_produtos|length > 1 else none %}
+    {% set terceiro = ranking_produtos[2] if ranking_produtos|length > 2 else none %}
+
+    <div class="infografico__champion">
+      <span class="infografico__champion-icon"><i class="bi bi-trophy-fill"></i></span>
+      <div>
+        <small>Campeão de vendas</small>
+        <strong>{{ campeao.produto }}</strong>
+        <span>{{ campeao.quantidade }} un. · {{ campeao.total|money }}</span>
+      </div>
+    </div>
+
+    {% if ranking_produtos|length >= 2 %}
+    <div class="infografico__podium">
+      <div class="infografico__podium-slot infografico__podium-slot--2">
+        {% if segundo %}
+        <p class="infografico__podium-name" title="{{ segundo.produto }}">{{ segundo.produto }}</p>
+        <span>{{ segundo.quantidade }} un.</span>
+        <div class="infografico__podium-bar infografico__podium-bar--2">2º</div>
+        {% endif %}
+      </div>
+      <div class="infografico__podium-slot infografico__podium-slot--1">
+        <p class="infografico__podium-name" title="{{ campeao.produto }}">{{ campeao.produto }}</p>
+        <span>{{ campeao.quantidade }} un.</span>
+        <div class="infografico__podium-bar infografico__podium-bar--1">1º</div>
+      </div>
+      <div class="infografico__podium-slot infografico__podium-slot--3">
+        {% if terceiro %}
+        <p class="infografico__podium-name" title="{{ terceiro.produto }}">{{ terceiro.produto }}</p>
+        <span>{{ terceiro.quantidade }} un.</span>
+        <div class="infografico__podium-bar infografico__podium-bar--3">3º</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="infografico__chart-card infografico__chart-card--inline">
+      <h3><i class="bi bi-bar-chart"></i> Top produtos por quantidade</h3>
+      <div class="infografico__chart-wrap infografico__chart-wrap--ranking">
+        <canvas id="chartProdutosInf"></canvas>
+      </div>
+    </div>
+
+    <div class="infografico__ranking-table-wrap">
+      <table class="infografico__ranking-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Produto</th>
+            <th>Qtd.</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in ranking_produtos[:12] %}
+          <tr class="{% if item.posicao == 1 %}is-gold{% elif item.posicao == 2 %}is-silver{% elif item.posicao == 3 %}is-bronze{% endif %}">
+            <td>
+              {% if item.posicao == 1 %}<i class="bi bi-trophy-fill"></i>{% else %}{{ item.posicao }}º{% endif %}
+            </td>
+            <td>{{ item.produto }}</td>
+            <td>{{ item.quantidade }}</td>
+            <td>{{ item.total|money }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="infografico__ranking-empty muted">Importe PDFs de vendas no caixa para exibir o ranking de produtos.</p>
+    {% endif %}
+  </section>
+
+  <section class="infografico__details">
+    <div class="infografico__detail-card">
+      <h3><i class="bi bi-ticket-perforated"></i> Rifa</h3>
+      <ul class="infografico__detail-list">
+        <li><span>Doações (A)</span><strong>{{ rifa.doacoes|money }}</strong></li>
+        <li><span>Arrecadado (C)</span><strong>{{ rifa.arrecadado|money }}</strong></li>
+        <li><span>Despesas rifa (B)</span><strong>{{ rifa.despesas|money }}</strong></li>
+        <li><span>Blocos vendidos</span><strong>{{ '%.1f'|format(rifa.qtd_blocos)|replace('.', ',') }}</strong></li>
+        <li class="highlight"><span>Saldo líquido</span><strong>{{ rifa.liquido|money }}</strong></li>
+      </ul>
+    </div>
+    <div class="infografico__detail-card">
+      <h3><i class="bi bi-hammer"></i> Leilão</h3>
+      <ul class="infografico__detail-list">
+        <li><span>Entradas</span><strong>{{ leilao.entradas|money }}</strong></li>
+        <li><span>Saídas</span><strong>{{ leilao.saidas|money }}</strong></li>
+        <li class="highlight"><span>Líquido</span><strong>{{ leilao.liquido|money }}</strong></li>
+      </ul>
+    </div>
+    <div class="infografico__detail-card">
+      <h3><i class="bi bi-wallet2"></i> Caixa consolidado</h3>
+      <ul class="infografico__detail-list">
+        <li><span>Vendas PDF</span><strong>{{ caixa_totais.total_vendas_pdf|money }}</strong></li>
+        <li><span>Sangrias</span><strong>{{ caixa_totais.sangrias|money }}</strong></li>
+        <li><span>Dinheiro (líq.)</span><strong>{{ caixa_totais.dinheiro|money }}</strong></li>
+        <li><span>Pix</span><strong>{{ caixa_totais.pix|money }}</strong></li>
+        <li class="highlight"><span>Total caixa</span><strong>{{ caixa_totais.total_caixa_sem_leilao|money }}</strong></li>
+      </ul>
+    </div>
+    {% if vendedores_top %}
+    <div class="infografico__detail-card">
+      <h3><i class="bi bi-people"></i> Top vendedores rifa</h3>
+      <ul class="infografico__detail-list">
+        {% for v in vendedores_top %}
+        <li><span>{{ v.nome }}</span><strong>{{ v.rifas|money }}</strong></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </section>
+
+  <footer class="infografico__footer">
+    <span>Paróquia · Festejo de Santo Antônio de Lisboa</span>
+    <span>Gerado em {{ gerado_em }}</span>
+  </footer>
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script>
+Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
+Chart.defaults.color = '#64748b';
+
+const COLORS = {
+  primary: '#0f4d38',
+  blue: '#2563eb',
+  purple: '#7c3aed',
+  gold: '#d97706',
+  danger: '#dc2626',
+  neutral: '#64748b',
+};
+
+const moneyFmt = (v) => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const receitasData = [{{ receita_caixa }}, {{ receita_rifa }}, {{ receita_leilao }}, {{ receita_outras }}];
+const resultadoData = [{{ total_receitas }}, {{ total_despesas }}, {{ ganho_liquido }}, {{ curia_15 }}, {{ lucro_liquido }}];
+const pagamentosData = [{{ caixa_totais.dinheiro }}, {{ caixa_totais.debito }}, {{ caixa_totais.credito }}, {{ caixa_totais.pix }}];
+const despesasLabels = [{% for d in despesas_top %}'{{ d.categoria|replace("'", "\\'") }}'{% if not loop.last %}, {% endif %}{% endfor %}];
+const despesasData = [{% for d in despesas_top %}{{ d.valor }}{% if not loop.last %}, {% endif %}{% endfor %}];
+
+new Chart(document.getElementById('chartReceitasInf'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Caixa', 'Rifa', 'Leilão', 'Outras'],
+    datasets: [{
+      data: receitasData,
+      backgroundColor: [COLORS.primary, COLORS.blue, COLORS.purple, COLORS.gold],
+      borderWidth: 3,
+      borderColor: '#ffffff',
+      spacing: 2
+    }]
+  },
+  options: {
+    cutout: '62%',
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { usePointStyle: true, padding: 10, font: { weight: '600', size: 11 } } },
+      tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${moneyFmt(ctx.raw)}` } }
+    }
+  }
+});
+
+new Chart(document.getElementById('chartPagamentosInf'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Dinheiro', 'Débito', 'Crédito', 'Pix'],
+    datasets: [{
+      data: pagamentosData,
+      backgroundColor: [COLORS.primary, COLORS.blue, COLORS.purple, COLORS.neutral],
+      borderWidth: 3,
+      borderColor: '#ffffff',
+      spacing: 2
+    }]
+  },
+  options: {
+    cutout: '55%',
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { usePointStyle: true, padding: 10, font: { weight: '600', size: 11 } } },
+      tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${moneyFmt(ctx.raw)}` } }
+    }
+  }
+});
+
+new Chart(document.getElementById('chartResultadoInf'), {
+  type: 'bar',
+  data: {
+    labels: ['Receitas', 'Despesas', 'Ganho', '15% Cúria', 'Lucro'],
+    datasets: [{
+      data: resultadoData,
+      backgroundColor: [COLORS.primary, COLORS.danger, COLORS.blue, COLORS.purple, COLORS.gold],
+      borderRadius: 8,
+      maxBarThickness: 36
+    }]
+  },
+  options: {
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: (ctx) => moneyFmt(ctx.raw) } }
+    },
+    maintainAspectRatio: false,
+    scales: {
+      x: { grid: { display: false }, border: { display: false } },
+      y: { beginAtZero: true, grid: { color: '#f1f5f9' }, border: { display: false }, ticks: { callback: (v) => 'R$ ' + (v/1000).toFixed(0) + 'k' } }
+    }
+  }
+});
+
+if (despesasData.length && document.getElementById('chartDespesasInf')) {
+  new Chart(document.getElementById('chartDespesasInf'), {
+    type: 'bar',
+    data: {
+      labels: despesasLabels,
+      datasets: [{
+        data: despesasData,
+        backgroundColor: COLORS.danger,
+        borderRadius: 6,
+        maxBarThickness: 28
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => moneyFmt(ctx.raw) } }
+      },
+      maintainAspectRatio: false,
+      scales: {
+        x: { beginAtZero: true, grid: { color: '#f1f5f9' }, border: { display: false } },
+        y: { grid: { display: false }, border: { display: false } }
+      }
+    }
+  });
+}
+
+{% if dias %}
+new Chart(document.getElementById('chartDiasInf'), {
+  type: 'bar',
+  data: {
+    labels: [{% for d in dias %}'{{ (d.rotulo or d.data|datebr)|replace("'", "\\'") }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+    datasets: [
+      {
+        label: 'Caixa',
+        data: [{% for d in dias %}{{ d.caixa }}{% if not loop.last %}, {% endif %}{% endfor %}],
+        backgroundColor: COLORS.primary,
+        borderRadius: 5,
+        maxBarThickness: 28
+      },
+      {
+        label: 'Leilão',
+        data: [{% for d in dias %}{{ d.leilao }}{% if not loop.last %}, {% endif %}{% endfor %}],
+        backgroundColor: COLORS.purple,
+        borderRadius: 5,
+        maxBarThickness: 28
+      }
+    ]
+  },
+  options: {
+    plugins: {
+      legend: { position: 'bottom', labels: { usePointStyle: true, padding: 12 } },
+      tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${moneyFmt(ctx.raw)}` } }
+    },
+    maintainAspectRatio: false,
+    scales: {
+      x: { grid: { display: false }, border: { display: false } },
+      y: { beginAtZero: true, grid: { color: '#f1f5f9' }, border: { display: false } }
+    }
+  }
+});
+{% endif %}
+
+{% if ranking_produtos %}
+const produtosTop = [{% for item in ranking_produtos[:8] %}{ nome: '{{ item.produto|replace("'", "\\'") }}', qtd: {{ item.quantidade }} }{% if not loop.last %}, {% endif %}{% endfor %}];
+if (produtosTop.length && document.getElementById('chartProdutosInf')) {
+  new Chart(document.getElementById('chartProdutosInf'), {
+    type: 'bar',
+    data: {
+      labels: produtosTop.map(p => p.nome.length > 22 ? p.nome.slice(0, 22) + '…' : p.nome),
+      datasets: [{
+        data: produtosTop.map(p => p.qtd),
+        backgroundColor: produtosTop.map((_, i) => i === 0 ? COLORS.gold : i === 1 ? '#94a3b8' : i === 2 ? '#b45309' : COLORS.primary),
+        borderRadius: 6,
+        maxBarThickness: 22
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      maintainAspectRatio: false,
+      scales: {
+        x: { beginAtZero: true, grid: { color: '#f1f5f9' }, border: { display: false } },
+        y: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 10, weight: '600' } } }
+      }
+    }
+  });
+}
+{% endif %}
+
+document.getElementById('btnPrint').addEventListener('click', () => window.print());
+
+document.getElementById('btnDownload').addEventListener('click', async () => {
+  const el = document.getElementById('infograficoCanvas');
+  const btn = document.getElementById('btnDownload');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Gerando...';
+  try {
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      logging: false
+    });
+    const link = document.createElement('a');
+    link.download = 'infografico-{{ festejo.ano }}.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-download"></i> Baixar PNG';
+  }
+});
+</script>
+{% endblock %}
