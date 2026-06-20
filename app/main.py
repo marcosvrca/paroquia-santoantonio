@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 
 
@@ -32,6 +32,8 @@ from app.models import (
     DiaFestejo,
 
     Festejo,
+
+    Investimento,
 
     LancamentoFinanceiro,
 
@@ -46,6 +48,8 @@ from app.models import (
     Sangria,
 
     NotaFiscal,
+
+    PatrocinioMovimento,
 
 )
 
@@ -82,6 +86,18 @@ from app.services import (
 
     totais_leilao,
 
+    totais_patrocinios,
+
+    resumo_patrocinadores,
+
+    totais_investimentos,
+
+    mapa_investimentos_por_nota,
+
+    resumo_investimentos_por_item,
+
+    criar_investimento,
+
     totais_rifa,
 
     importar_nota_fiscal,
@@ -99,6 +115,14 @@ from app.services import (
     excluir_rifa_movimento,
 
     atualizar_rifa_movimento,
+
+    excluir_patrocinio_movimento,
+
+    atualizar_patrocinio_movimento,
+
+    excluir_investimento,
+
+    atualizar_investimento,
 
     excluir_leilao_movimento,
 
@@ -979,7 +1003,223 @@ def excluir_rifa(mov_id: int, db: Session = Depends(get_db)):
     return RedirectResponse("/rifa/lancar", status_code=303)
 
 
+@app.get("/patrocinios", response_class=HTMLResponse)
+def pagina_patrocinios_redirect():
+    return RedirectResponse("/patrocinios/visao-geral", status_code=303)
 
+
+@app.get("/patrocinios/visao-geral", response_class=HTMLResponse)
+@app.get("/patrocinios/lancar", response_class=HTMLResponse)
+def pagina_patrocinios(request: Request, db: Session = Depends(get_db), erro: str = "", sucesso: str = ""):
+    festejo = get_or_create_festejo_ativo(db)
+    view = "lancar" if request.url.path.endswith("/lancar") else "visao"
+
+    movimentos = (
+        db.query(PatrocinioMovimento)
+        .filter(PatrocinioMovimento.festejo_id == festejo.id)
+        .order_by(PatrocinioMovimento.data.desc(), PatrocinioMovimento.id.desc())
+        .all()
+    )
+
+    return templates.TemplateResponse(
+        request,
+        "patrocinios.html",
+        {
+            "festejo": festejo,
+            "movimentos": movimentos,
+            "totais": totais_patrocinios(db, festejo.id),
+            "patrocinadores": resumo_patrocinadores(db, festejo.id),
+            "erro": erro,
+            "sucesso": sucesso,
+            "view": view,
+            "subnav": _section_subnav("/patrocinios", "Lançar patrocínios"),
+        },
+    )
+
+
+@app.post("/patrocinios")
+def adicionar_patrocinio(
+    tipo: str = Form(...),
+    patrocinador: str = Form(""),
+    descricao: str = Form(""),
+    valor: str = Form(...),
+    data: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    festejo = get_or_create_festejo_ativo(db)
+
+    if tipo not in ("entrada", "saida"):
+        raise HTTPException(400, "Tipo inválido")
+
+    valor_num = parse_money(valor)
+    if valor_num <= 0:
+        raise HTTPException(400, "Informe um valor maior que zero")
+
+    nome = patrocinador.strip() or None
+    texto = descricao.strip()
+    if tipo == "entrada" and not nome and not texto:
+        raise HTTPException(400, "Informe o patrocinador ou uma descrição")
+
+    if tipo == "entrada":
+        patrocinador_final = nome or texto
+        descricao_final = texto or nome or "Patrocínio"
+    else:
+        patrocinador_final = nome
+        descricao_final = texto or "Saída de patrocínio"
+
+    data_mov = datetime.strptime(data, "%Y-%m-%d").date() if data else date.today()
+
+    db.add(
+        PatrocinioMovimento(
+            festejo_id=festejo.id,
+            tipo=tipo,
+            patrocinador=patrocinador_final,
+            descricao=descricao_final,
+            valor=valor_num,
+            data=data_mov,
+        )
+    )
+    db.commit()
+    return RedirectResponse("/patrocinios/lancar", status_code=303)
+
+
+@app.post("/patrocinios/{mov_id}/editar")
+def editar_patrocinio(
+    mov_id: int,
+    tipo: str = Form(...),
+    patrocinador: str = Form(""),
+    descricao: str = Form(""),
+    valor: str = Form(...),
+    data: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    festejo = get_or_create_festejo_ativo(db)
+    data_mov = datetime.strptime(data, "%Y-%m-%d").date() if data else None
+
+    try:
+        atualizar_patrocinio_movimento(
+            db,
+            mov_id,
+            festejo.id,
+            tipo=tipo,
+            patrocinador=patrocinador,
+            descricao=descricao,
+            valor=parse_money(valor),
+            data_mov=data_mov,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    return RedirectResponse("/patrocinios/lancar", status_code=303)
+
+
+@app.post("/patrocinios/{mov_id}/excluir")
+def excluir_patrocinio(mov_id: int, db: Session = Depends(get_db)):
+    festejo = get_or_create_festejo_ativo(db)
+    try:
+        excluir_patrocinio_movimento(db, mov_id, festejo.id)
+    except ValueError:
+        pass
+    return RedirectResponse("/patrocinios/lancar", status_code=303)
+
+
+@app.get("/investimentos", response_class=HTMLResponse)
+def pagina_investimentos_redirect():
+    return RedirectResponse("/investimentos/visao-geral", status_code=303)
+
+
+@app.get("/investimentos/visao-geral", response_class=HTMLResponse)
+@app.get("/investimentos/lancar", response_class=HTMLResponse)
+def pagina_investimentos(request: Request, db: Session = Depends(get_db), erro: str = "", sucesso: str = ""):
+    festejo = get_or_create_festejo_ativo(db)
+    view = "lancar" if request.url.path.endswith("/lancar") else "visao"
+
+    investimentos = (
+        db.query(Investimento)
+        .options(joinedload(Investimento.nota_fiscal))
+        .filter(Investimento.festejo_id == festejo.id)
+        .order_by(Investimento.data.desc(), Investimento.id.desc())
+        .all()
+    )
+
+    return templates.TemplateResponse(
+        request,
+        "investimentos.html",
+        {
+            "festejo": festejo,
+            "investimentos": investimentos,
+            "totais": totais_investimentos(db, festejo.id),
+            "por_item": resumo_investimentos_por_item(db, festejo.id),
+            "erro": erro,
+            "sucesso": sucesso,
+            "view": view,
+            "subnav": _section_subnav("/investimentos", "Lançar investimentos"),
+        },
+    )
+
+
+@app.post("/investimentos")
+def adicionar_investimento(
+    investido_em: str = Form(...),
+    valor: str = Form(...),
+    data: str = Form(""),
+    observacao: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    festejo = get_or_create_festejo_ativo(db)
+    data_inv = datetime.strptime(data, "%Y-%m-%d").date() if data else date.today()
+
+    try:
+        criar_investimento(
+            db,
+            festejo.id,
+            investido_em=investido_em,
+            valor=parse_money(valor),
+            data_inv=data_inv,
+            observacao=observacao,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    return RedirectResponse("/investimentos/lancar", status_code=303)
+
+
+@app.post("/investimentos/{inv_id}/editar")
+def editar_investimento_route(
+    inv_id: int,
+    investido_em: str = Form(...),
+    valor: str = Form(...),
+    data: str = Form(""),
+    observacao: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    festejo = get_or_create_festejo_ativo(db)
+    data_inv = datetime.strptime(data, "%Y-%m-%d").date() if data else None
+
+    try:
+        atualizar_investimento(
+            db,
+            inv_id,
+            festejo.id,
+            investido_em=investido_em,
+            valor=parse_money(valor),
+            data_inv=data_inv,
+            observacao=observacao,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    return RedirectResponse("/investimentos/lancar", status_code=303)
+
+
+@app.post("/investimentos/{inv_id}/excluir")
+def excluir_investimento_route(inv_id: int, db: Session = Depends(get_db)):
+    festejo = get_or_create_festejo_ativo(db)
+    try:
+        excluir_investimento(db, inv_id, festejo.id)
+    except ValueError:
+        pass
+    return RedirectResponse("/investimentos/lancar", status_code=303)
 
 
 @app.get("/leilao", response_class=HTMLResponse)
@@ -1379,6 +1619,7 @@ def _ctx_despesas(
         "toast": toast,
         "view": view,
         "subnav": _section_subnav("/despesas", "Lançar despesas"),
+        "investimentos_por_nota": mapa_investimentos_por_nota(db, festejo.id),
     }
 
 
@@ -1659,7 +1900,51 @@ def excluir_despesa_nfe(nota_id: int, db: Session = Depends(get_db)):
     return RedirectResponse("/despesas/lancar", status_code=303)
 
 
+@app.post("/despesas/{nota_id}/investimento")
+def salvar_investimento_despesa(
+    nota_id: int,
+    investido_em: str = Form(...),
+    valor: str = Form(...),
+    data: str = Form(""),
+    observacao: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    festejo = get_or_create_festejo_ativo(db)
+    data_inv = datetime.strptime(data, "%Y-%m-%d").date() if data else None
+    valor_num = parse_money(valor)
+    existente = (
+        db.query(Investimento)
+        .filter(Investimento.nota_id == nota_id, Investimento.festejo_id == festejo.id)
+        .first()
+    )
 
+    try:
+        if existente:
+            atualizar_investimento(
+                db,
+                existente.id,
+                festejo.id,
+                investido_em=investido_em,
+                valor=valor_num,
+                data_inv=data_inv,
+                observacao=observacao,
+            )
+            msg = "Investimento vinculado à despesa atualizado."
+        else:
+            criar_investimento(
+                db,
+                festejo.id,
+                investido_em=investido_em,
+                valor=valor_num,
+                data_inv=data_inv,
+                observacao=observacao,
+                nota_id=nota_id,
+            )
+            msg = "Despesa registrada como investimento."
+    except ValueError as exc:
+        return RedirectResponse(f"/despesas/lancar?erro={quote(str(exc))}", status_code=303)
+
+    return RedirectResponse(f"/despesas/lancar?sucesso={quote(msg)}", status_code=303)
 
 
 @app.post("/despesas/{nota_id}/editar")

@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Investimentos — Festejo{% endblock %}
+{% block topbar_title %}Investimentos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header__intro">
+    <p class="page-eyebrow">Controle patrimonial</p>
+    <h1><i class="bi bi-piggy-bank"></i> Investimentos</h1>
+    <p class="muted mb-0">
+      {% if view == 'lancar' %}
+      Cadastre investimentos realizados no festejo. Valores aqui são apenas informativos e não entram no relatório de receitas e despesas.
+      {% else %}
+      Visão consolidada dos investimentos — separados das despesas operacionais para evitar divergências no balanço.
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+{{ ui.section_subnav(subnav, view) }}
+
+<div class="kpi-strip kpi-strip--3">
+  {{ ui.kpi_card('Total investido', totais.total|money, 'bi-cash-stack', 'green', true) }}
+  {{ ui.kpi_card('Registros', totais.quantidade, 'bi-journal-check', 'blue') }}
+  {{ ui.kpi_card('Vinculados a despesas', totais.vinculados_despesas, 'bi-link-45deg', 'purple') }}
+</div>
+
+{% if view == 'lancar' %}
+
+{% if erro %}{{ ui.alerta_erro(erro) }}{% endif %}
+{% if sucesso %}{{ ui.alerta_sucesso(sucesso) }}{% endif %}
+
+<section class="card">
+  <h2><i class="bi bi-plus-circle text-success"></i> Novo investimento</h2>
+  <p class="muted help-note">Use quando o investimento não foi lançado previamente em Despesas, ou para complementar o cadastro.</p>
+  <form method="post" action="/investimentos" class="form-grid">
+    <label class="full-width">
+      Em que foi investido *
+      <input type="text" name="investido_em" required placeholder="Ex.: Estrutura do palco, som, iluminação...">
+    </label>
+    <label>
+      Valor (R$) *
+      <input type="text" name="valor" required placeholder="5.000,00">
+    </label>
+    <label>
+      Data do investimento
+      <input type="date" name="data">
+    </label>
+    <label class="full-width">
+      Observações
+      <input type="text" name="observacao" placeholder="Detalhes adicionais, fornecedor, local...">
+    </label>
+    <button type="submit" class="btn primary">Registrar investimento</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Todos os investimentos</h2>
+  {% if investimentos %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Investido em</th>
+          <th>Valor</th>
+          <th>Despesa vinculada</th>
+          <th>Observações</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in investimentos %}
+        <tr>
+          <td>{{ inv.data|datebr if inv.data else '—' }}</td>
+          <td>{{ inv.investido_em }}</td>
+          <td>{{ inv.valor|money }}</td>
+          <td>
+            {% if inv.nota_fiscal %}
+            <span class="tag ok" title="{{ inv.nota_fiscal.emitente_nome }}">NF {{ inv.nota_fiscal.numero }}/{{ inv.nota_fiscal.serie }}</span>
+            {% else %}
+            <span class="muted">Avulso</span>
+            {% endif %}
+          </td>
+          <td>{{ inv.observacao or '—' }}</td>
+          <td class="actions-cell">
+            <details class="edit-details">
+              <summary class="btn small"><i class="bi bi-pencil"></i> Editar</summary>
+              <div class="edit-panel">
+                <form method="post" action="/investimentos/{{ inv.id }}/editar" class="form-inline">
+                  <input type="text" name="investido_em" value="{{ inv.investido_em }}" placeholder="Investido em" required>
+                  <input type="text" name="valor" value="{{ '%.2f'|format(inv.valor)|replace('.', ',') }}" placeholder="Valor" required>
+                  <input type="date" name="data" value="{{ inv.data.strftime('%Y-%m-%d') if inv.data else '' }}">
+                  <input type="text" name="observacao" value="{{ inv.observacao or '' }}" placeholder="Observações">
+                  <button type="submit" class="btn small primary">Salvar</button>
+                </form>
+              </div>
+            </details>
+            {{ ui.btn_excluir('/investimentos/' ~ inv.id ~ '/excluir', 'Excluir este investimento?') }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">Nenhum investimento cadastrado.</p>
+  {% endif %}
+</section>
+
+{% else %}
+
+{% if por_item %}
+<section class="card">
+  <h2><i class="bi bi-bar-chart text-success"></i> Investimentos por item</h2>
+  <div class="table-wrap">
+    <table class="table-hover">
+      <thead><tr><th>Item / aplicação</th><th>Registros</th><th>Total</th></tr></thead>
+      <tbody>
+        {% for item in por_item %}
+        <tr>
+          <td>{{ item.item }}</td>
+          <td>{{ item.quantidade }}</td>
+          <td><strong>{{ item.total|money }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Todos os investimentos</h2>
+  {% if investimentos %}
+  <div class="table-wrap">
+    <table class="table-hover">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Investido em</th>
+          <th>Valor</th>
+          <th>Despesa vinculada</th>
+          <th>Observações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in investimentos %}
+        <tr>
+          <td>{{ inv.data|datebr if inv.data else '—' }}</td>
+          <td>{{ inv.investido_em }}</td>
+          <td>{{ inv.valor|money }}</td>
+          <td>
+            {% if inv.nota_fiscal %}
+            <span class="tag ok">{{ inv.nota_fiscal.emitente_nome }}</span>
+            {% else %}
+            <span class="muted">Avulso</span>
+            {% endif %}
+          </td>
+          <td>{{ inv.observacao or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">Nenhum investimento. <a href="/investimentos/lancar">Lançar investimentos</a> ou vincule a partir de <a href="/despesas/lancar">Despesas</a>.</p>
+  {% endif %}
+</section>
+
+{% endif %}
+{% endblock %}

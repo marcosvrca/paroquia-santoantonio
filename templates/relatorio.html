@@ -127,6 +127,7 @@
     <ul class="summary-list">
       <li><span>Caixa (sem leilão)</span><strong>{{ receita_caixa|money }}</strong></li>
       <li><span>Rifa líquida</span><strong>{{ receita_rifa|money }}</strong></li>
+      <li><span>Patrocínios líquido</span><strong>{{ receita_patrocinios|money }}</strong></li>
       <li><span>Leilão líquido</span><strong>{{ receita_leilao|money }}</strong></li>
       <li><span>Outras receitas</span><strong>{{ receita_outras|money }}</strong></li>
       <li class="highlight"><span>Total receitas</span><strong>{{ total_receitas|money }}</strong></li>
@@ -243,10 +244,10 @@ new Chart(document.getElementById('chartResultado'), {
 new Chart(document.getElementById('chartReceitasDet'), {
   type: 'doughnut',
   data: {
-    labels: ['Caixa', 'Rifa', 'Leilão', 'Outras'],
+    labels: ['Caixa', 'Rifa', 'Patrocínios', 'Leilão', 'Outras'],
     datasets: [{
-      data: [{{ receita_caixa }}, {{ receita_rifa }}, {{ receita_leilao }}, {{ receita_outras }}],
-      backgroundColor: ['#0f4d38', '#2563eb', '#7c3aed', '#d97706'],
+      data: [{{ receita_caixa }}, {{ receita_rifa }}, {{ receita_patrocinios }}, {{ receita_leilao }}, {{ receita_outras }}],
+      backgroundColor: ['#0f4d38', '#2563eb', '#059669', '#7c3aed', '#d97706'],
       borderWidth: 3,
       borderColor: '#ffffff',
       hoverOffset: 10,

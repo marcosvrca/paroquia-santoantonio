@@ -113,6 +113,8 @@
             {% else %}<span class="tag" title="{{ nota.chave }}">NF-e</span>{% endif %}
           </td>
           <td class="actions-cell">
+            {% set inv = investimentos_por_nota.get(nota.id) %}
+            {% set sugestao_inv = nota.natureza_operacao or nota.produtos_resumo or nota.categoria or nota.emitente_nome %}
             <details class="edit-details">
               <summary class="btn small"><i class="bi bi-pencil"></i> Editar</summary>
               <div class="edit-panel">
@@ -135,11 +137,18 @@
                 </form>
               </div>
             </details>
+            <button type="button" class="btn small" data-dialog-open="dialog-invest-{{ nota.id }}">
+              <i class="bi bi-piggy-bank"></i>
+              {% if inv %}Investimento{% else %}Informar como investimento{% endif %}
+            </button>
             {{ ui.btn_excluir('/despesas/' ~ nota.id ~ '/excluir', 'Excluir nota e despesa vinculada?') }}
           </td>
         </tr>
         {% if nota.produtos_resumo %}
         <tr class="sub-row"><td colspan="8"><small><i class="bi bi-box-seam"></i> {{ nota.produtos_resumo }}</small></td></tr>
+        {% endif %}
+        {% if inv %}
+        <tr class="sub-row"><td colspan="8"><small><i class="bi bi-piggy-bank text-success"></i> Investimento: <strong>{{ inv.investido_em }}</strong> — {{ inv.valor|money }}</small></td></tr>
         {% endif %}
         {% endfor %}
       </tbody>
@@ -152,6 +161,50 @@
   </div>
   {% endif %}
 </section>
+
+{% for nota in notas %}
+{% set inv = investimentos_por_nota.get(nota.id) %}
+{% set sugestao_inv = nota.natureza_operacao or nota.produtos_resumo or nota.categoria or nota.emitente_nome %}
+<dialog class="app-dialog" id="dialog-invest-{{ nota.id }}">
+  <form method="post" action="/despesas/{{ nota.id }}/investimento" class="app-dialog__form">
+    <header class="app-dialog__header">
+      <h2><i class="bi bi-piggy-bank"></i> {% if inv %}Editar investimento{% else %}Informar despesa como investimento{% endif %}</h2>
+      <p class="muted mb-0">
+        Despesa: <strong>{{ nota.emitente_nome }}</strong> — {{ nota.valor_total|money }}
+        {% if nota.numero %}(NF {{ nota.numero }}/{{ nota.serie }}){% endif %}
+      </p>
+      <p class="muted help-note mb-0">Este valor permanece na despesa e é registrado separadamente em Investimentos, sem alterar receitas e despesas do relatório.</p>
+    </header>
+    <div class="form-grid">
+      <label class="full-width">
+        Em que foi investido *
+        <input type="text" name="investido_em" required maxlength="255" class="form-control"
+          value="{{ inv.investido_em if inv else sugestao_inv }}">
+      </label>
+      <label>
+        Valor (R$) *
+        <input type="text" name="valor" required class="form-control"
+          value="{{ '%.2f'|format(inv.valor if inv else nota.valor_total)|replace('.', ',') }}">
+      </label>
+      <label>
+        Data do investimento
+        <input type="date" name="data" class="form-control"
+          value="{{ (inv.data if inv and inv.data else nota.data_emissao).strftime('%Y-%m-%d') if (inv and inv.data) or nota.data_emissao else '' }}">
+      </label>
+      <label class="full-width">
+        Observações
+        <input type="text" name="observacao" maxlength="500" class="form-control"
+          value="{{ inv.observacao if inv and inv.observacao else '' }}"
+          placeholder="Detalhes adicionais...">
+      </label>
+    </div>
+    <footer class="app-dialog__actions">
+      <button type="button" class="btn" data-dialog-close>Cancelar</button>
+      <button type="submit" class="btn primary">{% if inv %}Salvar investimento{% else %}Registrar investimento{% endif %}</button>
+    </footer>
+  </form>
+</dialog>
+{% endfor %}
 
 {% else %}
 
@@ -318,6 +371,7 @@
           <td><span class="tag ok">{{ nota.categoria }}</span></td>
           <td><strong>{{ nota.valor_total|money }}</strong></td>
           <td>
+            {% if investimentos_por_nota.get(nota.id) %}<span class="tag ok" title="Vinculado a investimento"><i class="bi bi-piggy-bank"></i></span>{% endif %}
             {% if nota.chave|nota_manual %}<span class="tag">Manual</span>
             {% elif nota.xml_arquivo and nota.xml_arquivo.endswith('.pdf') %}<span class="tag">PDF</span>
             {% elif nota.xml_arquivo %}<span class="tag">XML</span>
@@ -343,7 +397,27 @@
 {% endblock %}
 
 {% block scripts %}
-{% if view == 'visao' and analise.quantidade %}
+{% if view == 'lancar' %}
+<script>
+document.querySelectorAll('[data-dialog-open]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const dlg = document.getElementById(btn.getAttribute('data-dialog-open'));
+    if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
+  });
+});
+document.querySelectorAll('[data-dialog-close]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const dlg = btn.closest('dialog');
+    if (dlg) dlg.close();
+  });
+});
+document.querySelectorAll('.app-dialog').forEach((dlg) => {
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg) dlg.close();
+  });
+});
+</script>
+{% elif view == 'visao' and analise.quantidade %}
 <script>
 Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
 Chart.defaults.color = '#64748b';

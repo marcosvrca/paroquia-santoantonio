@@ -25,7 +25,7 @@
       Relatório consolidado · {{ festejo.ano }}
       {% if festejo.data_inicio %} · {{ festejo.data_inicio|datebr }}{% if festejo.data_fim %} a {{ festejo.data_fim|datebr }}{% endif %}{% endif %}
     </p>
-    <div class="infografico__hero-stats infografico__hero-stats--4">
+    <div class="infografico__hero-stats infografico__hero-stats--5">
       <div class="infografico__hero-stat">
         <span>{{ qtd_dias }}</span>
         <small>Dias registrados</small>
@@ -42,10 +42,14 @@
         <span>{{ lucro_liquido|money }}</span>
         <small>Lucro líquido · {{ '%.1f'|format(margem_lucro)|replace('.', ',') }}%</small>
       </div>
+      <div class="infografico__hero-stat infografico__hero-stat--cyan">
+        <span>{{ investimentos_totais.total|money }}</span>
+        <small>Investimentos · {{ investimentos_totais.quantidade }} registro(s)</small>
+      </div>
     </div>
   </header>
 
-  <section class="infografico__kpis">
+  <section class="infografico__kpis infografico__kpis--6">
     <div class="infografico__kpi infografico__kpi--green">
       <i class="bi bi-cash-stack"></i>
       <strong>{{ receita_caixa|money }}</strong>
@@ -63,6 +67,12 @@
       <strong>{{ receita_leilao|money }}</strong>
       <span>Leilão líquido</span>
       <em>{{ '%.1f'|format(pct_receita_leilao)|replace('.', ',') }}%</em>
+    </div>
+    <div class="infografico__kpi infografico__kpi--teal">
+      <i class="bi bi-hand-thumbs-up"></i>
+      <strong>{{ receita_patrocinios|money }}</strong>
+      <span>Patrocínios líquido</span>
+      <em>{{ '%.1f'|format(pct_receita_patrocinios)|replace('.', ',') }}%</em>
     </div>
     <div class="infografico__kpi infografico__kpi--gold">
       <i class="bi bi-plus-circle"></i>
@@ -101,6 +111,115 @@
     <div class="infografico__flow-step infografico__flow-step--highlight">
       <span class="infografico__flow-label">Lucro líquido</span>
       <strong>{{ lucro_liquido|money }}</strong>
+    </div>
+  </section>
+
+  <section class="infografico__extras">
+    <div class="infografico__extras-head">
+      <h2><i class="bi bi-layers"></i> Patrocínios e Investimentos</h2>
+      <p>Patrocínios entram nas receitas. Investimentos são patrimônio à parte e <strong>não alteram</strong> o balanço.</p>
+    </div>
+
+    <div class="infografico__extras-grid">
+      <div class="infografico__extras-card infografico__extras-card--patrocinios">
+        <div class="infografico__extras-card-head">
+          <h3><i class="bi bi-hand-thumbs-up"></i> Patrocínios</h3>
+          <span class="infografico__extras-tag infografico__extras-tag--green">Incluído nas receitas</span>
+        </div>
+
+        <div class="infografico__extras-metrics">
+          <div class="infografico__extras-metric">
+            <span>Entradas</span>
+            <strong>{{ patrocinios.entradas|money }}</strong>
+          </div>
+          <div class="infografico__extras-metric">
+            <span>Saídas</span>
+            <strong>{{ patrocinios.saidas|money }}</strong>
+          </div>
+          <div class="infografico__extras-metric infografico__extras-metric--highlight">
+            <span>Líquido</span>
+            <strong>{{ patrocinios.liquido|money }}</strong>
+          </div>
+        </div>
+
+        <div class="infografico__extras-body">
+          <div class="infografico__extras-visual">
+            {% if patrocinios.entradas or patrocinios.saidas %}
+            <div class="infografico__chart-wrap infografico__chart-wrap--extras">
+              <canvas id="chartPatrociniosInf"></canvas>
+            </div>
+            {% else %}
+            <div class="infografico__extras-empty">
+              <i class="bi bi-hand-thumbs-up"></i>
+              <p>Sem patrocínios cadastrados</p>
+              <small>Cadastre em Patrocínios → Lançar</small>
+            </div>
+            {% endif %}
+          </div>
+          <div class="infografico__extras-list">
+            <h4>Top patrocinadores</h4>
+            {% if patrocinadores_top %}
+            <ul>
+              {% for p in patrocinadores_top %}
+              <li><span>{{ p.nome }}</span><strong>{{ p.total|money }}</strong></li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p class="infografico__extras-list-empty">Nenhum registro ainda.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="infografico__extras-card infografico__extras-card--investimentos">
+        <div class="infografico__extras-card-head">
+          <h3><i class="bi bi-piggy-bank"></i> Investimentos</h3>
+          <span class="infografico__extras-tag infografico__extras-tag--cyan">Fora do balanço</span>
+        </div>
+
+        <div class="infografico__extras-metrics">
+          <div class="infografico__extras-metric">
+            <span>Total investido</span>
+            <strong>{{ investimentos_totais.total|money }}</strong>
+          </div>
+          <div class="infografico__extras-metric">
+            <span>Vinculados a NF</span>
+            <strong>{{ investimentos_totais.vinculados_despesas }}</strong>
+          </div>
+          <div class="infografico__extras-metric">
+            <span>Avulsos</span>
+            <strong>{{ investimentos_totais.avulsos }}</strong>
+          </div>
+        </div>
+
+        <div class="infografico__extras-body">
+          <div class="infografico__extras-visual">
+            {% if investimentos_top %}
+            <div class="infografico__chart-wrap infografico__chart-wrap--extras">
+              <canvas id="chartInvestimentosInf"></canvas>
+            </div>
+            {% else %}
+            <div class="infografico__extras-empty">
+              <i class="bi bi-piggy-bank"></i>
+              <p>Sem investimentos cadastrados</p>
+              <small>Cadastre em Investimentos ou via Despesas</small>
+            </div>
+            {% endif %}
+          </div>
+          <div class="infografico__extras-list">
+            <h4>Principais aplicações</h4>
+            {% if investimentos_top %}
+            <ul>
+              {% for item in investimentos_top %}
+              <li><span title="{{ item.item }}">{{ item.item[:32] }}{% if item.item|length > 32 %}…{% endif %}</span><strong>{{ item.total|money }}</strong></li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p class="infografico__extras-list-empty">Nenhum registro ainda.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -237,6 +356,25 @@
       </ul>
     </div>
     <div class="infografico__detail-card">
+      <h3><i class="bi bi-hand-thumbs-up"></i> Patrocínios</h3>
+      <ul class="infografico__detail-list">
+        <li><span>Entradas</span><strong>{{ patrocinios.entradas|money }}</strong></li>
+        <li><span>Saídas (contrapartidas)</span><strong>{{ patrocinios.saidas|money }}</strong></li>
+        <li><span>Lançamentos</span><strong>{{ patrocinios.quantidade }}</strong></li>
+        <li class="highlight"><span>Líquido (receita)</span><strong>{{ patrocinios.liquido|money }}</strong></li>
+      </ul>
+    </div>
+    <div class="infografico__detail-card">
+      <h3><i class="bi bi-piggy-bank"></i> Investimentos</h3>
+      <ul class="infografico__detail-list">
+        <li><span>Total investido</span><strong>{{ investimentos_totais.total|money }}</strong></li>
+        <li><span>Registros</span><strong>{{ investimentos_totais.quantidade }}</strong></li>
+        <li><span>Vinculados a NF</span><strong>{{ investimentos_totais.vinculados_despesas }}</strong></li>
+        <li><span>Cadastros avulsos</span><strong>{{ investimentos_totais.avulsos }}</strong></li>
+        <li class="highlight"><span>Impacto no balanço</span><strong>Nenhum</strong></li>
+      </ul>
+    </div>
+    <div class="infografico__detail-card">
       <h3><i class="bi bi-hammer"></i> Leilão</h3>
       <ul class="infografico__detail-list">
         <li><span>Entradas</span><strong>{{ leilao.entradas|money }}</strong></li>
@@ -256,6 +394,16 @@
         <li class="highlight"><span>Total caixa</span><strong>{{ caixa_totais.total_caixa_sem_leilao|money }}</strong></li>
       </ul>
     </div>
+    {% if patrocinadores_top %}
+    <div class="infografico__detail-card">
+      <h3><i class="bi bi-people"></i> Top patrocinadores</h3>
+      <ul class="infografico__detail-list">
+        {% for p in patrocinadores_top %}
+        <li><span>{{ p.nome }}</span><strong>{{ p.total|money }}</strong></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
     {% if vendedores_top %}
     <div class="infografico__detail-card">
       <h3><i class="bi bi-people"></i> Top vendedores rifa</h3>
@@ -288,11 +436,16 @@ const COLORS = {
   gold: '#d97706',
   danger: '#dc2626',
   neutral: '#64748b',
+  teal: '#059669',
+  cyan: '#0891b2',
 };
 
 const moneyFmt = (v) => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const receitasData = [{{ receita_caixa }}, {{ receita_rifa }}, {{ receita_leilao }}, {{ receita_outras }}];
+const receitasData = [{{ receita_caixa }}, {{ receita_rifa }}, {{ receita_patrocinios }}, {{ receita_leilao }}, {{ receita_outras }}];
+const patrociniosData = [{{ patrocinios.entradas }}, {{ patrocinios.saidas }}];
+const investimentosLabels = [{% for item in investimentos_top %}'{{ item.item[:28]|replace("'", "\\'") }}{% if item.item|length > 28 %}…{% endif %}'{% if not loop.last %}, {% endif %}{% endfor %}];
+const investimentosData = [{% for item in investimentos_top %}{{ item.total }}{% if not loop.last %}, {% endif %}{% endfor %}];
 const resultadoData = [{{ total_receitas }}, {{ total_despesas }}, {{ ganho_liquido }}, {{ curia_15 }}, {{ lucro_liquido }}];
 const pagamentosData = [{{ caixa_totais.dinheiro }}, {{ caixa_totais.debito }}, {{ caixa_totais.credito }}, {{ caixa_totais.pix }}];
 const despesasLabels = [{% for d in despesas_top %}'{{ d.categoria|replace("'", "\\'") }}'{% if not loop.last %}, {% endif %}{% endfor %}];
@@ -301,10 +454,10 @@ const despesasData = [{% for d in despesas_top %}{{ d.valor }}{% if not loop.las
 new Chart(document.getElementById('chartReceitasInf'), {
   type: 'doughnut',
   data: {
-    labels: ['Caixa', 'Rifa', 'Leilão', 'Outras'],
+    labels: ['Caixa', 'Rifa', 'Patrocínios', 'Leilão', 'Outras'],
     datasets: [{
       data: receitasData,
-      backgroundColor: [COLORS.primary, COLORS.blue, COLORS.purple, COLORS.gold],
+      backgroundColor: [COLORS.primary, COLORS.blue, '#059669', COLORS.purple, COLORS.gold],
       borderWidth: 3,
       borderColor: '#ffffff',
       spacing: 2
@@ -319,6 +472,57 @@ new Chart(document.getElementById('chartReceitasInf'), {
     }
   }
 });
+
+if (document.getElementById('chartPatrociniosInf') && (patrociniosData[0] || patrociniosData[1])) {
+  new Chart(document.getElementById('chartPatrociniosInf'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Entradas', 'Saídas'],
+      datasets: [{
+        data: patrociniosData,
+        backgroundColor: [COLORS.teal, COLORS.danger],
+        borderWidth: 3,
+        borderColor: '#ffffff',
+        spacing: 2
+      }]
+    },
+    options: {
+      cutout: '58%',
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { usePointStyle: true, padding: 8, font: { weight: '600', size: 10 } } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${moneyFmt(ctx.raw)}` } }
+      }
+    }
+  });
+}
+
+if (document.getElementById('chartInvestimentosInf') && investimentosData.length) {
+  new Chart(document.getElementById('chartInvestimentosInf'), {
+    type: 'bar',
+    data: {
+      labels: investimentosLabels,
+      datasets: [{
+        data: investimentosData,
+        backgroundColor: COLORS.cyan,
+        borderRadius: 6,
+        maxBarThickness: 22
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => moneyFmt(ctx.raw) } }
+      },
+      maintainAspectRatio: false,
+      scales: {
+        x: { beginAtZero: true, grid: { color: '#f1f5f9' }, border: { display: false } },
+        y: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 10, weight: '600' } } }
+      }
+    }
+  });
+}
 
 new Chart(document.getElementById('chartPagamentosInf'), {
   type: 'doughnut',

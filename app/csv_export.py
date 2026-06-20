@@ -10,6 +10,7 @@ from app.models import (
     DiaFestejo,
     LeilaoMovimento,
     NotaFiscal,
+    PatrocinioMovimento,
     RifaMovimento,
     Sangria,
 )
@@ -19,6 +20,7 @@ from app.services import (
     ranking_produtos_vendas,
     relatorio_final,
     resumo_vendedores_rifa,
+    totais_patrocinios,
     totais_rifa,
 )
 
@@ -27,6 +29,7 @@ SECOES_DISPONIVEIS = {
     "caixa": "Caixa",
     "leilao": "Leilão",
     "rifa": "Rifa",
+    "patrocinios": "Patrocínios",
     "lancamentos": "Receitas e despesas manuais",
     "notas": "Notas fiscais",
     "produtos": "Ranking de produtos",
@@ -97,6 +100,7 @@ def gerar_csv_relatorio(db: Session, festejo_id: int, secoes: list[str]) -> tupl
         linhas.append(["Indicador", "Valor (R$)"])
         linhas.append(["Receita — Caixa (sem leilão)", _fmt_num(relatorio["receita_caixa"])])
         linhas.append(["Receita — Rifa líquida", _fmt_num(relatorio["receita_rifa"])])
+        linhas.append(["Receita — Patrocínios líquido", _fmt_num(relatorio["receita_patrocinios"])])
         linhas.append(["Receita — Leilão líquido", _fmt_num(relatorio["receita_leilao"])])
         linhas.append(["Receita — Outras (manuais)", _fmt_num(relatorio["receita_outras"])])
         linhas.append(["Total receitas", _fmt_num(relatorio["total_receitas"])])
@@ -119,6 +123,13 @@ def gerar_csv_relatorio(db: Session, festejo_id: int, secoes: list[str]) -> tupl
         linhas.append(["Entradas", _fmt_num(leilao_totais["entradas"])])
         linhas.append(["Saídas", _fmt_num(leilao_totais["saidas"])])
         linhas.append(["Líquido", _fmt_num(leilao_totais["liquido"])])
+
+        patrocinios_totais = relatorio["patrocinios"]
+        linhas.append([])
+        linhas.append(["Patrocínios — indicadores", "Valor (R$)"])
+        linhas.append(["Entradas", _fmt_num(patrocinios_totais["entradas"])])
+        linhas.append(["Saídas", _fmt_num(patrocinios_totais["saidas"])])
+        linhas.append(["Líquido", _fmt_num(patrocinios_totais["liquido"])])
 
     if "caixa" in secoes_ativas:
         _secao(linhas, SECOES_DISPONIVEIS["caixa"])
@@ -274,6 +285,33 @@ def gerar_csv_relatorio(db: Session, festejo_id: int, secoes: list[str]) -> tupl
                     _fmt_num(v["blocos"]),
                     _fmt_num(v["premiacao"]),
                 ])
+
+    if "patrocinios" in secoes_ativas:
+        _secao(linhas, SECOES_DISPONIVEIS["patrocinios"])
+        patrocinios_totais = totais_patrocinios(db, festejo_id)
+        linhas.append(["Totais de patrocínios"])
+        linhas.append(["Indicador", "Valor (R$)"])
+        linhas.append(["Entradas", _fmt_num(patrocinios_totais["entradas"])])
+        linhas.append(["Saídas", _fmt_num(patrocinios_totais["saidas"])])
+        linhas.append(["Líquido", _fmt_num(patrocinios_totais["liquido"])])
+
+        movimentos = (
+            db.query(PatrocinioMovimento)
+            .filter(PatrocinioMovimento.festejo_id == festejo_id)
+            .order_by(PatrocinioMovimento.data, PatrocinioMovimento.id)
+            .all()
+        )
+        linhas.append([])
+        linhas.append(["Movimentos de patrocínios"])
+        linhas.append(["Data", "Tipo", "Patrocinador", "Descrição", "Valor (R$)"])
+        for mov in movimentos:
+            linhas.append([
+                _fmt_data(mov.data),
+                mov.tipo,
+                mov.patrocinador or "",
+                mov.descricao,
+                _fmt_num(mov.valor),
+            ])
 
     if "lancamentos" in secoes_ativas:
         _secao(linhas, SECOES_DISPONIVEIS["lancamentos"])

@@ -31,6 +31,12 @@ class Festejo(Base):
     notas_fiscais: Mapped[list["NotaFiscal"]] = relationship(
         back_populates="festejo", cascade="all, delete-orphan"
     )
+    patrocinio_movimentos: Mapped[list["PatrocinioMovimento"]] = relationship(
+        back_populates="festejo", cascade="all, delete-orphan"
+    )
+    investimentos: Mapped[list["Investimento"]] = relationship(
+        back_populates="festejo", cascade="all, delete-orphan"
+    )
 
 
 class DiaFestejo(Base):
@@ -144,6 +150,35 @@ class RifaMovimento(Base):
     dia: Mapped["DiaFestejo | None"] = relationship(back_populates="rifa_movimentos")
 
 
+class PatrocinioMovimento(Base):
+    __tablename__ = "patrocinio_movimentos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    festejo_id: Mapped[int] = mapped_column(ForeignKey("festejos.id"), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False)
+    patrocinador: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    descricao: Mapped[str] = mapped_column(String(255), default="")
+    valor: Mapped[float] = mapped_column(Float, nullable=False)
+    data: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    festejo: Mapped["Festejo"] = relationship(back_populates="patrocinio_movimentos")
+
+
+class Investimento(Base):
+    __tablename__ = "investimentos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    festejo_id: Mapped[int] = mapped_column(ForeignKey("festejos.id"), nullable=False)
+    nota_id: Mapped[int | None] = mapped_column(ForeignKey("notas_fiscais.id"), nullable=True, unique=True)
+    valor: Mapped[float] = mapped_column(Float, nullable=False)
+    investido_em: Mapped[str] = mapped_column(String(255), nullable=False)
+    data: Mapped[date | None] = mapped_column(Date, nullable=True)
+    observacao: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    festejo: Mapped["Festejo"] = relationship(back_populates="investimentos")
+    nota_fiscal: Mapped["NotaFiscal | None"] = relationship(back_populates="investimento", uselist=False)
+
+
 class Sangria(Base):
     __tablename__ = "sangrias"
 
@@ -193,3 +228,6 @@ class NotaFiscal(Base):
 
     festejo: Mapped["Festejo"] = relationship(back_populates="notas_fiscais")
     lancamento: Mapped["LancamentoFinanceiro | None"] = relationship(back_populates="nota_fiscal")
+    investimento: Mapped["Investimento | None"] = relationship(
+        back_populates="nota_fiscal", uselist=False, cascade="all, delete-orphan"
+    )

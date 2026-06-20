@@ -37,6 +37,11 @@
       <span>Rifa</span>
       <small>Doações, vendas, incentivo</small>
     </a>
+    <a href="/patrocinios" class="module-card module-card--gold">
+      <i class="bi bi-hand-thumbs-up"></i>
+      <span>Patrocínios</span>
+      <small>Entradas e contrapartidas</small>
+    </a>
     <a href="/leilao" class="module-card module-card--purple">
       <i class="bi bi-hammer"></i>
       <span>Leilão</span>
@@ -46,6 +51,11 @@
       <i class="bi bi-receipt"></i>
       <span>Despesas</span>
       <small>Notas fiscais e NF</small>
+    </a>
+    <a href="/investimentos" class="module-card module-card--teal">
+      <i class="bi bi-piggy-bank"></i>
+      <span>Investimentos</span>
+      <small>Patrimônio do festejo</small>
     </a>
   </div>
 </section>
@@ -101,10 +111,10 @@ Chart.defaults.color = '#64748b';
 new Chart(document.getElementById('chartReceitas'), {
   type: 'doughnut',
   data: {
-    labels: ['Caixa', 'Rifa', 'Leilão', 'Outras', 'Despesas'],
+    labels: ['Caixa', 'Rifa', 'Patrocínios', 'Leilão', 'Outras', 'Despesas'],
     datasets: [{
-      data: [{{ relatorio.receita_caixa }}, {{ relatorio.receita_rifa }}, {{ relatorio.receita_leilao }}, {{ relatorio.receita_outras }}, {{ relatorio.total_despesas }}],
-      backgroundColor: ['#0f4d38', '#2563eb', '#7c3aed', '#d97706', '#dc2626'],
+      data: [{{ relatorio.receita_caixa }}, {{ relatorio.receita_rifa }}, {{ relatorio.receita_patrocinios }}, {{ relatorio.receita_leilao }}, {{ relatorio.receita_outras }}, {{ relatorio.total_despesas }}],
+      backgroundColor: ['#0f4d38', '#2563eb', '#059669', '#7c3aed', '#d97706', '#dc2626'],
       borderWidth: 3,
       borderColor: '#ffffff',
       hoverOffset: 10,

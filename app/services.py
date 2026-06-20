@@ -7,11 +7,13 @@ from app.models import (
     CaixaRegistro,
     DiaFestejo,
     Festejo,
+    Investimento,
     LancamentoFinanceiro,
     LeilaoMovimento,
     NotaFiscal,
     ProdutoVenda,
     RelatorioPdf,
+    PatrocinioMovimento,
     RifaMovimento,
     Sangria,
 )
@@ -378,6 +380,174 @@ def importar_planilha_rifa(
     return criados
 
 
+def totais_patrocinios(db: Session, festejo_id: int) -> dict:
+    movimentos = (
+        db.query(PatrocinioMovimento)
+        .filter(PatrocinioMovimento.festejo_id == festejo_id)
+        .all()
+    )
+    entradas = sum(m.valor for m in movimentos if m.tipo == "entrada")
+    saidas = sum(m.valor for m in movimentos if m.tipo == "saida")
+    return {
+        "entradas": round(entradas, 2),
+        "saidas": round(saidas, 2),
+        "liquido": round(entradas - saidas, 2),
+        "quantidade": len(movimentos),
+    }
+
+
+def resumo_patrocinadores(db: Session, festejo_id: int) -> list[dict]:
+    movimentos = (
+        db.query(PatrocinioMovimento)
+        .filter(
+            PatrocinioMovimento.festejo_id == festejo_id,
+            PatrocinioMovimento.tipo == "entrada",
+        )
+        .all()
+    )
+    por_nome: dict[str, float] = {}
+    for mov in movimentos:
+        nome = (mov.patrocinador or mov.descricao or "Sem nome").strip()
+        por_nome[nome] = por_nome.get(nome, 0.0) + mov.valor
+    return sorted(
+        [{"nome": nome, "total": round(total, 2)} for nome, total in por_nome.items()],
+        key=lambda x: x["total"],
+        reverse=True,
+    )
+
+
+def sugerir_investido_em(nota: NotaFiscal) -> str:
+    if nota.natureza_operacao.strip():
+        return nota.natureza_operacao.strip()[:255]
+    if nota.produtos_resumo.strip():
+        return nota.produtos_resumo.strip()[:255]
+    if nota.categoria.strip():
+        return nota.categoria.strip()[:255]
+    return (nota.emitente_nome or "Investimento").strip()[:255]
+
+
+def totais_investimentos(db: Session, festejo_id: int) -> dict:
+    itens = db.query(Investimento).filter(Investimento.festejo_id == festejo_id).all()
+    total = sum(i.valor for i in itens)
+    vinculados = sum(1 for i in itens if i.nota_id)
+    return {
+        "total": round(total, 2),
+        "quantidade": len(itens),
+        "vinculados_despesas": vinculados,
+        "avulsos": len(itens) - vinculados,
+    }
+
+
+def mapa_investimentos_por_nota(db: Session, festejo_id: int) -> dict[int, Investimento]:
+    itens = (
+        db.query(Investimento)
+        .filter(Investimento.festejo_id == festejo_id, Investimento.nota_id.isnot(None))
+        .all()
+    )
+    return {item.nota_id: item for item in itens if item.nota_id}
+
+
+def resumo_investimentos_por_item(db: Session, festejo_id: int) -> list[dict]:
+    itens = db.query(Investimento).filter(Investimento.festejo_id == festejo_id).all()
+    por_item: dict[str, dict] = {}
+    for item in itens:
+        nome = item.investido_em.strip() or "Sem descrição"
+        if nome not in por_item:
+            por_item[nome] = {"item": nome, "total": 0.0, "quantidade": 0}
+        por_item[nome]["total"] += item.valor
+        por_item[nome]["quantidade"] += 1
+    return sorted(
+        [
+            {
+                "item": v["item"],
+                "total": round(v["total"], 2),
+                "quantidade": v["quantidade"],
+            }
+            for v in por_item.values()
+        ],
+        key=lambda x: x["total"],
+        reverse=True,
+    )
+
+
+def criar_investimento(
+    db: Session,
+    festejo_id: int,
+    *,
+    investido_em: str,
+    valor: float,
+    data_inv: date | None = None,
+    observacao: str = "",
+    nota_id: int | None = None,
+) -> Investimento:
+    texto = investido_em.strip()
+    if not texto:
+        raise ValueError("Informe em que foi investido.")
+    if valor <= 0:
+        raise ValueError("Informe um valor maior que zero.")
+
+    if nota_id:
+        nota = db.get(NotaFiscal, nota_id)
+        if not nota or nota.festejo_id != festejo_id:
+            raise ValueError("Despesa não encontrada.")
+        existente = (
+            db.query(Investimento)
+            .filter(Investimento.nota_id == nota_id)
+            .first()
+        )
+        if existente:
+            raise ValueError("Esta despesa já possui um investimento cadastrado.")
+
+    item = Investimento(
+        festejo_id=festejo_id,
+        nota_id=nota_id,
+        valor=round(valor, 2),
+        investido_em=texto,
+        data=data_inv,
+        observacao=observacao.strip() or None,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def atualizar_investimento(
+    db: Session,
+    inv_id: int,
+    festejo_id: int,
+    *,
+    investido_em: str,
+    valor: float,
+    data_inv: date | None = None,
+    observacao: str = "",
+) -> Investimento:
+    item = db.get(Investimento, inv_id)
+    if not item or item.festejo_id != festejo_id:
+        raise ValueError("Investimento não encontrado.")
+    texto = investido_em.strip()
+    if not texto:
+        raise ValueError("Informe em que foi investido.")
+    if valor <= 0:
+        raise ValueError("Informe um valor maior que zero.")
+
+    item.investido_em = texto
+    item.valor = round(valor, 2)
+    item.data = data_inv
+    item.observacao = observacao.strip() or None
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def excluir_investimento(db: Session, inv_id: int, festejo_id: int) -> None:
+    item = db.get(Investimento, inv_id)
+    if not item or item.festejo_id != festejo_id:
+        raise ValueError("Investimento não encontrado.")
+    db.delete(item)
+    db.commit()
+
+
 def totais_leilao(db: Session, festejo_id: int) -> dict:
     dias = db.query(DiaFestejo).filter(DiaFestejo.festejo_id == festejo_id).all()
     dia_ids = [d.id for d in dias]
@@ -539,6 +709,7 @@ def relatorio_final(db: Session, festejo_id: int) -> dict:
     festejo = db.get(Festejo, festejo_id)
     caixa = totais_caixa_festejo(db, festejo_id)
     rifa = totais_rifa(db, festejo_id)
+    patrocinios = totais_patrocinios(db, festejo_id)
     leilao = totais_leilao(db, festejo_id)
 
     lancamentos = (
@@ -554,10 +725,11 @@ def relatorio_final(db: Session, festejo_id: int) -> dict:
 
     receita_caixa = caixa["total_caixa_sem_leilao"]
     receita_rifa = rifa["liquido"]
+    receita_patrocinios = patrocinios["liquido"]
     receita_leilao = leilao["liquido"]
     receita_outras = sum(l.valor for l in receitas_manuais)
 
-    total_receitas = receita_caixa + receita_rifa + receita_leilao + receita_outras
+    total_receitas = receita_caixa + receita_rifa + receita_patrocinios + receita_leilao + receita_outras
     total_despesas = sum(d.valor for d in despesas)
     ganho_liquido = total_receitas - total_despesas
     curia_15 = ganho_liquido * 0.15
@@ -567,11 +739,13 @@ def relatorio_final(db: Session, festejo_id: int) -> dict:
         "festejo": festejo,
         "caixa": caixa,
         "rifa": rifa,
+        "patrocinios": patrocinios,
         "leilao": leilao,
         "receitas_manuais": receitas_manuais,
         "despesas": despesas,
         "receita_caixa": round(receita_caixa, 2),
         "receita_rifa": round(receita_rifa, 2),
+        "receita_patrocinios": round(receita_patrocinios, 2),
         "receita_leilao": round(receita_leilao, 2),
         "receita_outras": round(receita_outras, 2),
         "total_receitas": round(total_receitas, 2),
@@ -618,6 +792,9 @@ def dados_infografico(db: Session, festejo_id: int) -> dict:
 
     notas = totais_notas_fiscais(db, festejo_id)
     vendedores = resumo_vendedores_rifa(db, festejo_id)[:5]
+    patrocinadores_top = resumo_patrocinadores(db, festejo_id)[:5]
+    investimentos_totais = totais_investimentos(db, festejo_id)
+    investimentos_top = resumo_investimentos_por_item(db, festejo_id)[:6]
     ranking_produtos = ranking_produtos_vendas(db, festejo_id)
     caixa_totais = totais_caixa_festejo(db, festejo_id)
 
@@ -638,12 +815,16 @@ def dados_infografico(db: Session, festejo_id: int) -> dict:
         "despesas_top": despesas_top,
         "notas": notas,
         "vendedores_top": vendedores,
+        "patrocinadores_top": patrocinadores_top,
+        "investimentos_totais": investimentos_totais,
+        "investimentos_top": investimentos_top,
         "ranking_produtos": ranking_produtos,
         "caixa_totais": caixa_totais,
         "qtd_dias": len(dias_resumo),
         "margem_lucro": margem_lucro,
         "pct_receita_caixa": pct_receita(relatorio["receita_caixa"]),
         "pct_receita_rifa": pct_receita(relatorio["receita_rifa"]),
+        "pct_receita_patrocinios": pct_receita(relatorio["receita_patrocinios"]),
         "pct_receita_leilao": pct_receita(relatorio["receita_leilao"]),
         "pct_receita_outras": pct_receita(relatorio["receita_outras"]),
     }
@@ -867,6 +1048,11 @@ def excluir_nota_fiscal(db: Session, nota_id: int) -> None:
     nota = db.get(NotaFiscal, nota_id)
     if not nota:
         raise ValueError("Nota fiscal não encontrada.")
+    investimento = (
+        db.query(Investimento).filter(Investimento.nota_id == nota_id).first()
+    )
+    if investimento:
+        db.delete(investimento)
     if nota.lancamento_id:
         lanc = db.get(LancamentoFinanceiro, nota.lancamento_id)
         if lanc:
@@ -910,6 +1096,53 @@ def atualizar_rifa_movimento(
         mov.descricao = f"Premiação — {nome}"
     elif descricao.strip():
         mov.descricao = descricao.strip()
+
+    mov.valor = round(valor, 2)
+    if data_mov:
+        mov.data = data_mov
+    db.commit()
+    db.refresh(mov)
+    return mov
+
+
+def excluir_patrocinio_movimento(db: Session, mov_id: int, festejo_id: int) -> None:
+    mov = db.get(PatrocinioMovimento, mov_id)
+    if not mov or mov.festejo_id != festejo_id:
+        raise ValueError("Lançamento de patrocínio não encontrado.")
+    db.delete(mov)
+    db.commit()
+
+
+def atualizar_patrocinio_movimento(
+    db: Session,
+    mov_id: int,
+    festejo_id: int,
+    *,
+    tipo: str,
+    patrocinador: str = "",
+    descricao: str = "",
+    valor: float,
+    data_mov: date | None = None,
+) -> PatrocinioMovimento:
+    mov = db.get(PatrocinioMovimento, mov_id)
+    if not mov or mov.festejo_id != festejo_id:
+        raise ValueError("Lançamento de patrocínio não encontrado.")
+    if tipo not in ("entrada", "saida"):
+        raise ValueError("Tipo inválido.")
+    if valor <= 0:
+        raise ValueError("Informe um valor maior que zero.")
+
+    mov.tipo = tipo
+    nome = patrocinador.strip() or None
+    texto = descricao.strip()
+    if tipo == "entrada":
+        if not nome and not texto:
+            raise ValueError("Informe o patrocinador ou uma descrição.")
+        mov.patrocinador = nome or texto
+        mov.descricao = texto or nome or "Patrocínio"
+    else:
+        mov.patrocinador = nome
+        mov.descricao = texto or "Saída de patrocínio"
 
     mov.valor = round(valor, 2)
     if data_mov:

@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Patrocínios — Festejo{% endblock %}
+{% block topbar_title %}Patrocínios{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header__intro">
+    <p class="page-eyebrow">Apoio e contrapartidas</p>
+    <h1><i class="bi bi-hand-thumbs-up"></i> Patrocínios</h1>
+    <p class="muted mb-0">
+      {% if view == 'lancar' %}
+      Cadastre entradas de patrocínio e saídas relacionadas (contrapartidas, custos, etc.).
+      {% else %}
+      Controle de valores recebidos de patrocinadores e despesas vinculadas ao módulo.
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+{{ ui.section_subnav(subnav, view) }}
+
+<div class="kpi-strip kpi-strip--3">
+  {{ ui.kpi_card('Entradas', totais.entradas|money, 'bi-arrow-down-circle', 'green') }}
+  {{ ui.kpi_card('Saídas', totais.saidas|money, 'bi-arrow-up-circle', 'danger') }}
+  {{ ui.kpi_card('Líquido', totais.liquido|money, 'bi-graph-up-arrow', 'gold', true) }}
+</div>
+
+{% if view == 'lancar' %}
+
+{% if erro %}{{ ui.alerta_erro(erro) }}{% endif %}
+{% if sucesso %}{{ ui.alerta_sucesso(sucesso) }}{% endif %}
+
+<section class="card grid-2">
+  <div>
+    <h2><i class="bi bi-arrow-down-circle text-success"></i> Entrada — patrocínio recebido</h2>
+    <form method="post" action="/patrocinios" class="form-grid">
+      <input type="hidden" name="tipo" value="entrada">
+      <label>
+        Patrocinador *
+        <input type="text" name="patrocinador" required placeholder="Ex.: Empresa XYZ">
+      </label>
+      <label>
+        Descrição
+        <input type="text" name="descricao" placeholder="Ex.: Cota ouro, material...">
+      </label>
+      <label>
+        Valor (R$) *
+        <input type="text" name="valor" required placeholder="1500,00">
+      </label>
+      <label>
+        Data
+        <input type="date" name="data">
+      </label>
+      <button type="submit" class="btn primary">Registrar entrada</button>
+    </form>
+  </div>
+  <div>
+    <h2><i class="bi bi-arrow-up-circle text-danger"></i> Saída — contrapartida ou custo</h2>
+    <form method="post" action="/patrocinios" class="form-grid">
+      <input type="hidden" name="tipo" value="saida">
+      <label>
+        Patrocinador
+        <input type="text" name="patrocinador" placeholder="Opcional — vincular ao patrocinador">
+      </label>
+      <label>
+        Descrição *
+        <input type="text" name="descricao" required placeholder="Ex.: Banner, brindes, mão de obra...">
+      </label>
+      <label>
+        Valor (R$) *
+        <input type="text" name="valor" required placeholder="300,00">
+      </label>
+      <label>
+        Data
+        <input type="date" name="data">
+      </label>
+      <button type="submit" class="btn primary">Registrar saída</button>
+    </form>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Todos os lançamentos</h2>
+  {% if movimentos %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Data</th><th>Tipo</th><th>Patrocinador</th><th>Descrição</th><th>Valor</th><th>Ações</th></tr>
+      </thead>
+      <tbody>
+        {% for m in movimentos %}
+        <tr>
+          <td>{{ m.data|datebr if m.data else '—' }}</td>
+          <td><span class="tag {{ 'ok' if m.tipo == 'entrada' else 'bad' }}">{{ m.tipo }}</span></td>
+          <td>{{ m.patrocinador or '—' }}</td>
+          <td>{{ m.descricao }}</td>
+          <td>{{ m.valor|money }}</td>
+          <td class="actions-cell">
+            <details class="edit-details">
+              <summary class="btn small"><i class="bi bi-pencil"></i> Editar</summary>
+              <div class="edit-panel">
+                <form method="post" action="/patrocinios/{{ m.id }}/editar" class="form-inline">
+                  <select name="tipo" required>
+                    <option value="entrada" {% if m.tipo == 'entrada' %}selected{% endif %}>Entrada</option>
+                    <option value="saida" {% if m.tipo == 'saida' %}selected{% endif %}>Saída</option>
+                  </select>
+                  <input type="text" name="patrocinador" value="{{ m.patrocinador or '' }}" placeholder="Patrocinador">
+                  <input type="text" name="descricao" value="{{ m.descricao }}" placeholder="Descrição" required>
+                  <input type="text" name="valor" value="{{ '%.2f'|format(m.valor)|replace('.', ',') }}" placeholder="Valor" required>
+                  <input type="date" name="data" value="{{ m.data.strftime('%Y-%m-%d') if m.data else '' }}">
+                  <button type="submit" class="btn small primary">Salvar</button>
+                </form>
+              </div>
+            </details>
+            {{ ui.btn_excluir('/patrocinios/' ~ m.id ~ '/excluir') }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">Nenhum lançamento cadastrado.</p>
+  {% endif %}
+</section>
+
+{% else %}
+
+{% if patrocinadores %}
+<section class="card">
+  <h2><i class="bi bi-people text-success"></i> Ranking de patrocinadores</h2>
+  <div class="table-wrap">
+    <table class="table-hover">
+      <thead><tr><th>Patrocinador</th><th>Total recebido</th></tr></thead>
+      <tbody>
+        {% for p in patrocinadores %}
+        <tr>
+          <td>{{ p.nome }}</td>
+          <td><strong>{{ p.total|money }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="card grid-2">
+  <div>
+    <h2>Entradas cadastradas</h2>
+    {% set lista = movimentos|selectattr('tipo', 'equalto', 'entrada')|list %}
+    {% if lista %}
+    <ul class="simple-list">
+      {% for m in lista %}<li>{{ m.patrocinador or m.descricao }} — {{ m.valor|money }}</li>{% endfor %}
+    </ul>
+    {% else %}<p class="muted">Nenhuma entrada.</p>{% endif %}
+  </div>
+  <div>
+    <h2>Saídas cadastradas</h2>
+    {% set lista = movimentos|selectattr('tipo', 'equalto', 'saida')|list %}
+    {% if lista %}
+    <ul class="simple-list">
+      {% for m in lista %}<li>{{ m.descricao }} — {{ m.valor|money }}</li>{% endfor %}
+    </ul>
+    {% else %}<p class="muted">Nenhuma saída.</p>{% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Todos os lançamentos</h2>
+  {% if movimentos %}
+  <div class="table-wrap">
+    <table class="table-hover">
+      <thead>
+        <tr><th>Data</th><th>Tipo</th><th>Patrocinador</th><th>Descrição</th><th>Valor</th></tr>
+      </thead>
+      <tbody>
+        {% for m in movimentos %}
+        <tr>
+          <td>{{ m.data|datebr if m.data else '—' }}</td>
+          <td><span class="tag {{ 'ok' if m.tipo == 'entrada' else 'bad' }}">{{ m.tipo }}</span></td>
+          <td>{{ m.patrocinador or '—' }}</td>
+          <td>{{ m.descricao }}</td>
+          <td>{{ m.valor|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">Nenhum lançamento. <a href="/patrocinios/lancar">Lançar patrocínios</a></p>
+  {% endif %}
+</section>
+
+{% endif %}
+{% endblock %}
